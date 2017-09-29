@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { ncp } = require('ncp')
+const glob = require('glob')
 require('colors')
 ncp.limit = 16 // nbr of concurrent process allocated to copy your files
 
@@ -47,7 +48,7 @@ const copyFolderToDstSync = (src, dst) => {
 	})
 }
 
-const copyFolderToDst = (src, dst) => {
+const copyFolderToDst = (src, dst, options) => {
 	const absSrc = getPath(src)
 	const absDst = getPath(dst)
 	
@@ -69,8 +70,14 @@ const copyFolderToDst = (src, dst) => {
 							/*eslint-enable */
 						}
 
-						console.log(`Files located under ${absSrc} successfully copied under folder ${absDst}`.green)
-						onSuccess(absDst)
+						if (!options || !options.silent)
+							console.log(`Files located under ${absSrc} successfully copied under folder ${absDst}`.green)
+
+						// This piece of code seems unecessary, but without it, any subsequent glob call in a chained promise 
+						// will only return incomplete results. I can't explain it so far. (Nicolas Dao - 2017/09/29)
+						glob(path.join(absDst, '**/*.*'), () => {
+							onSuccess(absDst)
+						})
 					})
 				})
 		})

@@ -11,7 +11,7 @@
   },
   "scripts": {
     "test": "mocha",
-    "eslint": "eslint index.js src/ --fix",
+    "eslint": "eslint index.js src/ test/ --fix",
     "release": "standard-version --prerelease alpha"
   },
   "keywords": [
