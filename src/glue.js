@@ -1,7 +1,5 @@
-const fs = require('fs')
-const glob = require('glob')
 const path = require('path')
-const { getFileAsString } = require('./fileManager')
+const { getFileAsString, getAllFilesInFolder, writeToFile, fileExists } = require('./fileManager').promise
 const { getAST } = require('./stringAnalyser')
 
 
@@ -19,8 +17,6 @@ const executeBlock = (blockStr, dirname, delimiter, params, options) => {
 			/*eslint-disable */
 			filePath = path.join(dirname, f.replace(/[\n|\t]/g, '').replace(/\($/,'').trim()) 
 			/*eslint-enable */
-			if (!fs.existsSync(filePath))
-				throw new Error(`Error in block string with arguments. Undefined file ${filePath} in block ${blockStr}`)
 			const a = code.replace(f,'').replace(/\)$/,'')
 			try {
 				args = JSON.parse(a)
@@ -45,53 +41,66 @@ const executeBlock = (blockStr, dirname, delimiter, params, options) => {
 					throw new Error(`Fail to eval expression ${blockVal}`)
 				}
 			}
-			else {
+			else
 				filePath = path.join(dirname, blockVal)
-				if (!fs.existsSync(filePath))
-					throw new Error(`Error in block string. Undefined file ${filePath} in block ${blockStr}`)
-			}
 		}
 
-		return (glueFile(filePath, args, options) || { text: '' }).text
+		return fileExists(filePath)
+			.then(
+				() => glueFile(filePath, args, options).then(c => (c || { text: '' }).text),
+				() => { throw new Error(`Error in block string. Undefined file ${filePath} in block ${blockStr}`) })
 	}
 	else 
-		return ''
+		return Promise.resolve('')
 }
 
 let _fileContent = {}
 const glueFile = (filePath, params = {}, options = {}) => {
-	let content = null
-	let originalContent = true
+	if (!filePath)
+		throw new Error('\'filePath\' is required.')
 	
-	if (filePath) {
-		const dirname = path.dirname(filePath)
-		content = _fileContent[filePath]
-		if (!content) {
-			const originalText = getFileAsString(filePath)
-			const open = '[<]'
-			const close = '[>]'
-			const escOpen = escapeRegExp(open)
-			const escClose = escapeRegExp(close)
-			const ast = getAST(originalText, { open, close })
+	const dirname = path.dirname(filePath)
+	
+	return Promise.resolve(_fileContent[filePath])
+		.then(content => {
+			let originalContent = true
 
-			originalContent = ast.children.length == 0
+			if (!content) {
+				const open = '[<]'
+				const close = '[>]'
 
-			const getContent = originalContent
-				? () => originalText
-				: (params, options) => ast.reassemble((blockStr) => executeBlock(blockStr, dirname, { open: escOpen, close: escClose }, params, options), options)
+				return getFileAsString(filePath)
+					.then(originalText => {
+						const escOpen = escapeRegExp(open)
+						const escClose = escapeRegExp(close)
+						const ast = getAST(originalText, { open, close })
 
-			content = {
-				getContent,
-				originalContent
+						originalContent = ast.children.length == 0
+
+						const getContent = originalContent
+							? () => Promise.resolve(originalText)
+							: (params, options) => ast.reassemble((blockStr) => executeBlock(blockStr, dirname, { open: escOpen, close: escClose }, params, options), options)
+
+						content = {
+							getContent,
+							originalContent
+						}
+						_fileContent[filePath] = content
+
+						return content.getContent(params, options)
+							.then(text => ({
+								text,
+								originalContent: content.originalContent
+							}))
+					})
 			}
-			_fileContent[filePath] = content
-		}
-	}
-	
-	return {
-		text: content.getContent(params, options),
-		originalContent: content.originalContent
-	}
+		
+			return content.getContent(params, options)
+				.then(text => ({
+					text,
+					originalContent: content.originalContent
+				}))
+		})
 }
 
 /*eslint-disable */
@@ -100,17 +109,12 @@ const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '
 
 const glueAllFiles = (rootPath, options) => {
 	_fileContent = {}
-	return new Promise(onSuccess => {
-		glob(path.join(rootPath, '**/*.*'), { ignore: ['**/*.exe', '**/*.dmg', '**/*.DS_Store'] }, (err, files = []) => {
-			files.forEach(f => {
-				const fileContent = glueFile(f, null, options)
-				if (fileContent && !fileContent.originalContent) {
-					fs.writeFileSync(f, fileContent.text)
-				}
-			})
-			onSuccess()
-		})	
-	})
+	return getAllFilesInFolder(rootPath, ['**/*.exe', '**/*.dmg', '**/*.DS_Store'])
+		.then(files => Promise.all(files.map(f => 
+			glueFile(f, null, options).then(fileContent => {
+				if (fileContent && !fileContent.originalContent) 
+					return writeToFile(f, fileContent.text)
+			}))))
 }
 
 module.exports = {

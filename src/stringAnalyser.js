@@ -114,7 +114,7 @@ const getAST = (s, delimiter) => {
 					latestAST.children.push(...ASTBreakdown.currentAST.children)
 				}
 				else { // this was actually invalid. Just rebuild and simply merge with the previous AST
-					const s = reassembleAST(ASTBreakdown.currentAST)
+					const s = reassembleASTSync(ASTBreakdown.currentAST)
 					latestAST.text += s
 				}
 
@@ -157,10 +157,30 @@ const reassembleAST = (AST, options = {}) => {
 	if (AST && AST.text) {
 		const { transform, indent } = options
 		if (AST.children.length > 0) {
+			const reassembleJobs = AST.children.map(ast => reassembleAST(ast, options)
+				.then(s => transform ? transform(s) : s)
+				.then(s => indent ? indentString(s, ast.indent) : s)
+				.then(s => ({ id: ast.id, value: s })))
+
+			return Promise.all(reassembleJobs)
+				.then(values => values.reduce((s, ast) => s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value), AST.text))
+		}
+		else 
+			return Promise.resolve(AST.text)
+	}
+	else
+		return Promise.resolve('')
+}
+
+const reassembleASTSync = (AST, options = {}) => {
+	if (AST && AST.text) {
+		const { indent } = options
+		const transform = null
+		if (AST.children.length > 0) {
 			return AST.children.map(ast => ({ 
-					id: ast.id, 
-					value: (s => indent ? indentString(s, ast.indent) : s)((s => transform ? transform(s) : s)(reassembleAST(ast, options)))
-				})) 
+				id: ast.id, 
+				value: (s => indent ? indentString(s, ast.indent) : s)((s => transform ? transform(s) : s)(reassembleAST(ast, options)))
+			})) 
 				.reduce((s, ast) => {
 					const g = s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value)
 					return g

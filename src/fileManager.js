@@ -5,21 +5,11 @@ const glob = require('glob')
 require('colors')
 ncp.limit = 16 // nbr of concurrent process allocated to copy your files
 
-const createDirSync = dirname => {
-	if (!fs.existsSync(dirname))
-		fs.mkdirSync(dirname)
-}
-
-const createDir = (dirname, cb) => 
-	fs.exists(dirname, exists => {
-		if (exists)
-			cb()
-		else
-			fs.mkdir(dirname, err => {
-				if (err) throw err
-				cb()
-			})
-	})
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+///												GENERAL
+///
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const getPath = p => p 
 	? p.indexOf(path.sep) == 0 || p.indexOf('~') == 0
@@ -28,6 +18,17 @@ const getPath = p => p
 		: path.join(process.cwd(), p) 
 	: process.cwd()
 	/*eslint-enable */
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+///												SYNC
+///
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const createDirSync = dirname => {
+	if (!fs.existsSync(dirname))
+		fs.mkdirSync(dirname)
+}
 
 const copyFolderToDstSync = (src, dst) => {
 	const absSrc = getPath(src)
@@ -47,6 +48,28 @@ const copyFolderToDstSync = (src, dst) => {
 		/*eslint-enable */
 	})
 }
+
+const getFileAsStringSync = filePath => {
+	const buf = fs.readFileSync(filePath)
+	return buf.toString()
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+///										PROMISE
+///
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const createDir = (dirname, cb) => 
+	fs.exists(dirname, exists => {
+		if (exists)
+			cb()
+		else
+			fs.mkdir(dirname, err => {
+				if (err) throw err
+				cb()
+			})
+	})
 
 const copyFolderToDst = (src, dst, options) => {
 	const absSrc = getPath(src)
@@ -82,17 +105,34 @@ const copyFolderToDst = (src, dst, options) => {
 				})
 		})
 	})
-
-	
 }
 
-const getFileAsString = filePath => {
-	const buf = fs.readFileSync(filePath)
-	return buf.toString()
-}
+const fileExists = p => new Promise((onSuccess, onFailure) => fs.exists(p, exists => exists ? onSuccess(p) : onFailure(p)))
+
+const writeToFile = (filePath, stringContent) => new Promise((onSuccess, onFailure) => fs.writeFile(filePath, stringContent, err => 
+	err ? onFailure(err) : onSuccess()))
+
+const getFileAsString = filePath => new Promise((onSuccess, onFailure) => 
+	fs.readFile(filePath, (err, data) => err ? onFailure(err) : onSuccess(data.toString())))
+
+const getAllFilesInFolder = (folderPath, ignore) => new Promise((onSuccess, onFailure) => {
+	if (!folderPath)
+		onFailure('\'folderPath\' is required')
+	else
+		glob(path.join(folderPath, '**/*.*'), ignore ? { ignore } : {}, (err, files = []) => err ? onFailure(err) : onSuccess(files))	
+})
 
 module.exports = {
-	copyFolderToDst,
-	copyFolderToDstSync,
-	getFileAsString
+	sync: {
+		copyFolderToDst: copyFolderToDstSync,
+		getFileAsString: getFileAsStringSync,
+		createDir: createDirSync
+	},
+	promise: {
+		writeToFile,
+		copyFolderToDst,
+		getFileAsString,
+		fileExists,
+		getAllFilesInFolder
+	}
 }

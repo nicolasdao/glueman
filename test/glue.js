@@ -7,9 +7,8 @@
 */
 const { assert } = require('chai')
 const path = require('path')
-const { getAST } = require('../src/stringAnalyser')
 const { glueAllFiles } = require('../src/glue')
-const { copyFolderToDst, getFileAsString } = require('../src/fileManager')
+const { copyFolderToDst, getFileAsString } = require('../src/fileManager').promise
 
 const answer_fsdf422 = 
 `<!DOCTYPE html>
@@ -36,11 +35,14 @@ describe('glue', () =>
 		it(`Should be able to glue all files together.`, () => {
 			/*eslint-enable */
 
+			/*eslint-disable */
 			const src = path.join(__dirname, './dummy/src')
 			const dst = path.join(__dirname, './dummy/dst')
+			/*eslint-enable */
 			return copyFolderToDst(src, dst, { silent: true })
-			.then(dst => glueAllFiles(dst, { indent: true }))
-			.then(() => {
-				assert.equal(getFileAsString(path.join(dst, '/index.html')), answer_fsdf422)
-			})
+				.then(dst => glueAllFiles(dst, { indent: true }))
+				.then(() => {
+					return getFileAsString(path.join(dst, '/index.html'))
+						.then(v => assert.equal(v, answer_fsdf422))
+				})
 		})))

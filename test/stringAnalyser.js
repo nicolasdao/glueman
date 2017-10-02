@@ -127,7 +127,6 @@ describe('stringAnalyser', () =>
 			/*eslint-enable */
 			const text = 'This is <<the world <<of <<tomorrow>> <<where <<the birds and the elephants>>>> can >> fly>>. We\'re very excited to move >> forward. <<Another day <<another <<story>>>>'
 			const ast = getAST(text, { open: '<<', close: '>>' })
-			assert.equal(ast.reassemble(), text, '\'reassemble\' should rebuild the exact same string as the origin where the AST is from.')
 
 			const text2 = `
 			<!DOCTYPE html>
@@ -145,8 +144,12 @@ describe('stringAnalyser', () =>
 			</body>
 			</html>`
 			const ast2 = getAST(text2, { open: '[<]', close: '[>]' })
-
-			assert.equal(ast2.reassemble(), text2, '\'reassemble\' should rebuild the exact same HTML as the origin where the AST is from.')
+			
+			return Promise.all([ast.reassemble(), ast2.reassemble()])
+				.then(values => {
+					assert.equal(values[0], text, '\'reassemble\' should rebuild the exact same string as the origin where the AST is from.')
+					assert.equal(values[1], text2, '\'reassemble\' should rebuild the exact same HTML as the origin where the AST is from.')
+				})
 		})))
 
 /*eslint-disable */
@@ -190,9 +193,12 @@ describe('stringAnalyser', () =>
 			</html>`
 
 			const ast = getAST(text, { open: open, close: close })
-			assert.equal(ast.reassemble(), text, '\'reassemble\' should rebuild the exact same HTML as the origin where the AST is from.')
 			const transform = s => s.indexOf(`${open}./`) == 0 ? '<h1>Hello Yes</h1>' : ''
-			assert.equal(ast.reassemble(transform), answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+			
+			return ast.reassemble(transform)
+				.then(value => {
+					assert.equal(value, answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+				})
 		})))
 
 /*eslint-disable */
@@ -237,11 +243,14 @@ describe('stringAnalyser', () =>
 			</html>`
 
 			const ast = getAST(text, { open: open, close: close })
-			assert.equal(ast.reassemble(), text, '\'reassemble\' should rebuild the exact same HTML as the origin where the AST is from.')
 			const transform = s => s.indexOf(`${open}./`) == 0 
 				? '<h1>Hello</h1>\n<h1>Yes</h1>' 
 				: ''
-			assert.equal(ast.reassemble(transform, { indent: true }), answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+
+			return ast.reassemble(transform, { indent: true })
+				.then(value => {
+					assert.equal(value, answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+				})
 		})))
 
 
