@@ -40,7 +40,7 @@ describe('glue', () =>
 			const dst = path.join(__dirname, './dummy/dst')
 			/*eslint-enable */
 			return copyFolderToDst(src, dst, { silent: true })
-				.then(dst => glueAllFiles(dst, { indent: true }))
+				.then(({ dst }) => glueAllFiles(dst, { indent: true }))
 				.then(() => {
 					return getFileAsString(path.join(dst, '/index.html'))
 						.then(v => assert.equal(v, answer_fsdf422))

@@ -99,7 +99,7 @@ const copyFolderToDst = (src, dst, options) => {
 						// This piece of code seems unecessary, but without it, any subsequent glob call in a chained promise 
 						// will only return incomplete results. I can't explain it so far. (Nicolas Dao - 2017/09/29)
 						glob(path.join(absDst, '**/*.*'), () => {
-							onSuccess(absDst)
+							onSuccess({ src: absSrc, dst: absDst})
 						})
 					})
 				})
@@ -122,6 +122,19 @@ const getAllFilesInFolder = (folderPath, ignore) => new Promise((onSuccess, onFa
 		glob(path.join(folderPath, '**/*.*'), ignore ? { ignore } : {}, (err, files = []) => err ? onFailure(err) : onSuccess(files))	
 })
 
+const watchFolder = (folderPath, ignore, action) => {
+	if (!action)
+		throw new Error('\'action\' argument is required.')
+	if (typeof(action) != 'function')
+		throw new Error('\'action\' argument must be a function.')
+
+	fileExists(folderPath)
+		.then(
+			() => getAllFilesInFolder(folderPath, ignore).then(files => files.forEach(f => fs.watch(f, (eventType, filename) => action(eventType, filename)))),
+			() => { throw new Error(`Folder '${folderPath}' does not exist!`) }
+		)
+}
+
 module.exports = {
 	sync: {
 		copyFolderToDst: copyFolderToDstSync,
@@ -133,6 +146,7 @@ module.exports = {
 		copyFolderToDst,
 		getFileAsString,
 		fileExists,
-		getAllFilesInFolder
+		getAllFilesInFolder,
+		watchFolder
 	}
 }
