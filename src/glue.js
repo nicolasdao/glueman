@@ -1,4 +1,5 @@
 const path = require('path')
+const { files:ignore } = require('./ignore.json')
 const { getFileAsString, getAllFilesInFolder, writeToFile, fileExists } = require('./fileManager').promise
 const { getAST } = require('./stringAnalyser')
 
@@ -109,7 +110,8 @@ const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '
 
 const glueAllFiles = (rootPath, options) => {
 	_fileContent = {}
-	return getAllFilesInFolder(rootPath, ['**/*.exe', '**/*.dmg', '**/*.DS_Store'])
+	const ignoreList = (ignore || []).map(i => path.join('**',i))
+	return getAllFilesInFolder(rootPath, ignoreList)
 		.then(files => Promise.all(files.map(f => 
 			glueFile(f, null, options).then(fileContent => {
 				if (fileContent && !fileContent.originalContent) 

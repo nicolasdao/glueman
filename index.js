@@ -90,7 +90,7 @@ program
 				const origDst = dst
 				copyFolderToDst(src, dst, { silent: true })
 					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
-						.then(() => watchFolder(src, ['**/*.exe', '**/*.dmg', '**/*.DS_Store'], () => {
+						.then(() => watchFolder(src, null, () => {
 							copyFolderToDst(origSrc, origDst, { silent: true })
 								.then(({ dst }) => glueAllFiles(dst, { indent: true }))
 						})))
