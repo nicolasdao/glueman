@@ -122,6 +122,42 @@ describe('stringAnalyser', () =>
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
+	describe('#getAST: 04', () => 
+		it(`Should extract an abstract syntax tree based on a custom pair of opening and closing regex delimiters.`, () => {
+			/*eslint-enable */
+			const text = `
+			<!DOCTYPE html>
+			<html>
+			<head>
+				<title>This is Great!</title>
+			</head>
+			<body>
+				<glue src='./nav.html'>
+					<p>This is fun</p>
+				</glue>
+				<glue src="./hello/footer.html"/>
+				<h1>Hello World</h1>
+			</body>
+			</html>`
+
+			const v = 
+				`<glue src='./nav.html'>
+					<p>This is fun</p>
+				</glue>`
+
+			const v2 = 
+				`<glue src="./hello/footer.html"/>`
+
+			const ast = getAST(text, { open: /<glue(.*?)>/, close: /<\/glue>|\/>/ })
+			assert.equal(ast.children.length, 2, '\'ast.children\' should contain a single child.')
+			assert.equal(ast.children[0].text, v, '\'ast.children[0].text\' is not equal to the expected value.')
+			assert.equal(ast.children[1].text, v2, '\'ast.children[1].text\' is not equal to the expected value.')
+			console.log(ast.children[0])
+			console.log(ast.children[1])
+		})))
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
 	describe('#reassemble: 01', () => 
 		it(`Should be able to rebuild the original text.`, () => {
 			/*eslint-enable */
@@ -252,5 +288,6 @@ describe('stringAnalyser', () =>
 					assert.equal(value, answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
 				})
 		})))
+
 
 

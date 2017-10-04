@@ -16,11 +16,14 @@ const getAST = (s, delimiter) => {
 	if (!s)
 		return createAST('', [])
 	else {
+		const openIsRegEx = open instanceof RegExp
+		const closeIsRegEx = close instanceof RegExp
+		const openSize = openIsRegEx ? 0 : open.length
+		const closeSize = closeIsRegEx ? 0 : close.length
 		let openStringCursorCounter = 0
 		let closeStringCursorCounter = 0
-		const openSize = open.length
-		const closeSize = close.length
-
+		let openRegExMatch = null // This is only used for a regex open. When a match is found, it is stored there.
+		let closeRegExMatch = null // This is only used for a regex close. When a match is found, it is stored there.
 		// Loop through each character
 
 		const ASTBreakdown = [...s].reduce((a,l) => {
@@ -36,49 +39,64 @@ const getAST = (s, delimiter) => {
 				a.inIndentationArea = false
 
 			// B. Manage the value of the current open and close cursor
-			if (a.openStringCursorSizeReached) {
-				a.openStringCursor = a.openStringCursor.substr(1) + l
+			// B.1. Manage the open cursor
+			if (openIsRegEx) {
+				a.openStringCursor += l
+				openRegExMatch = (a.openStringCursor.match(open) || [])[0] 
 			}
 			else {
-				a.openStringCursor += l 
-				openStringCursorCounter++
-				a.openStringCursorSizeReached = openStringCursorCounter == openSize
+				if (a.openStringCursorSizeReached) {
+					a.openStringCursor = a.openStringCursor.substr(1) + l
+				}
+				else {
+					a.openStringCursor += l 
+					openStringCursorCounter++
+					a.openStringCursorSizeReached = openStringCursorCounter == openSize
+				}
 			}
-			if (a.closeStringCursorSizeReached) {
-				a.closeStringCursor = a.closeStringCursor.substr(1) + l
+			// B.2. Manage the close cursor
+			if (closeIsRegEx) {
+				a.closeStringCursor += l
+				closeRegExMatch = (a.closeStringCursor.match(close) || [])[0]
 			}
 			else {
-				a.closeStringCursor += l 
-				closeStringCursorCounter++
-				a.closeStringCursorSizeReached = closeStringCursorCounter == closeSize
+				if (a.closeStringCursorSizeReached) {
+					a.closeStringCursor = a.closeStringCursor.substr(1) + l
+				}
+				else {
+					a.closeStringCursor += l 
+					closeStringCursorCounter++
+					a.closeStringCursorSizeReached = closeStringCursorCounter == closeSize
+				}
 			}
 
 			// C. Accumulate the text of the current AST
 			a.currentAST.text += l
 
 			// D. Decide whether or not we need to update the current AST
-			const currentCursorStartsAnAST = a.openStringCursor == open
-			const currentCursorConfirmAnAST = a.closeStringCursor == close
+			const currentCursorStartsAnAST = openRegExMatch || a.openStringCursor == open
+			const currentCursorConfirmAnAST = closeRegExMatch || a.closeStringCursor == close
 
 			// D.1. Update must occur because we may have found a new AST
 			if (currentCursorStartsAnAST) {
 				// 1. Adjust the AST value
-				a.currentAST.text = a.currentAST.text.slice(0, -openSize)
+				a.currentAST.text = a.currentAST.text.slice(0, openRegExMatch ? -openRegExMatch.length : -openSize)
 				// 2. Save the AST to the stack
 				a.AST_Stack.push(Object.assign({}, a.currentAST))
 				// 3. Reset the current AST
-				a.currentAST = { id: newId() , indent: a.indent, text: open, children:[] }
+				a.currentAST = { id: newId() , open: openRegExMatch || open, indent: a.indent, text: openRegExMatch || open, children:[] }
 				// 4. Reset the current open cursor to make sure there are no overlaps
 				a.openStringCursor = ''
 				a.openStringCursorSizeReached = false
 				openStringCursorCounter = 0
 			}
 			// D.2. Update must occur because we have found a the end of an AST
-			else if (currentCursorConfirmAnAST && !a.currentAST.root) {
+			if (currentCursorConfirmAnAST && !a.currentAST.root) {
 				// 1. Get the latest saved AST
 				const latestAST = a.AST_Stack.pop()
 				// 2. Add the current AST as a child of the latestAST
 				const newAST = Object.assign({}, a.currentAST)
+				newAST.close = closeRegExMatch || close
 				latestAST.children.push(createAST(newAST))
 				// 3. Replace the current AST by its id 
 				latestAST.text += a.currentAST.id 
@@ -98,7 +116,7 @@ const getAST = (s, delimiter) => {
 			openStringCursorSizeReached: false, 
 			closeStringCursor:'', 
 			closeStringCursorSizeReached: false,
-			currentAST: { id: newId() , indent: '', text:'', children:[], root: true },
+			currentAST: { id: newId() , indent: '', text:'', open: null, close: null, children:[], root: true },
 			AST_Stack:[]
 		})
 		
@@ -130,8 +148,10 @@ const getAST = (s, delimiter) => {
 	}
 }
 
-const createAST = ({ id, indent, text, children }) => ({
+const createAST = ({ id, indent, text, children, open, close }) => ({
 	id: id || 'root',
+	open,
+	close,
 	indent: indent || '',
 	text,
 	children,
