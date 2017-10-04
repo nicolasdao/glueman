@@ -152,8 +152,6 @@ describe('stringAnalyser', () =>
 			assert.equal(ast.children.length, 2, '\'ast.children\' should contain a single child.')
 			assert.equal(ast.children[0].text, v, '\'ast.children[0].text\' is not equal to the expected value.')
 			assert.equal(ast.children[1].text, v2, '\'ast.children[1].text\' is not equal to the expected value.')
-			console.log(ast.children[0])
-			console.log(ast.children[1])
 		})))
 
 /*eslint-disable */
