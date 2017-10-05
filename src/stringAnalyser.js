@@ -158,6 +158,8 @@ const createAST = ({ id, indent, text, children, open, close }) => ({
 	reassemble: (transform, options) => reassembleAST({ text, children }, Object.assign({ transform }, options || {}))
 })
 
+const removeDelimiters = (s, open, close) => s.replace(open, '').replace(close, '')
+
 /*eslint-disable */
 const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&')
 /*eslint-enable */
@@ -215,8 +217,68 @@ const reassembleASTSync = (AST, options = {}) => {
 
 const indentString = (s,i) => s && i ? s.replace(/\n/g, `\n${i}`) : s
 
+/**
+ * Gets an object that represent all the attributes from a string (e.g. " src  ='./folder/index.html' root='./main' " -> { src: './folder/index.html', root: './main' })
+ * @param  {String} s Attributes (e.g. " src='./folder/index.html' root='./main' ")
+ * @return {Object}   Attributes object (e.g. { src: './folder/index.html', root: './main' })
+ */
+const getAttributes = s => s 
+	? 	(o => {
+			let out = {}
+			for(let i in o) {
+				if (i != '_isInsideAString' && i != '_expectingValue' && i != '_currentValueQuoteSymbol' && i != '_currentAttr' && i != '_strAcc')
+					out[i] = o[i]
+			}
+			return out
+		})
+		([...s].reduce((a,l, idx) => {
+			if (!a._isInsideAString) { // we're not inside a string
+				if (l == '=') { // found an attribute
+					a._currentAttr = a._strAcc.trim().split(' ').reverse()[0]
+					if (a._currentAttr == '')
+						throw new Error(`Badly formatted attribute string ${s}. Error before = character at position ${idx + 1}.`)
+					a._expectingValue = true
+					a._strAcc = ''
+				}
+				else if ((l == '"' || l == "'")) { // found a potential start or end of a value
+					if (a._expectingValue) {
+						a._isInsideAString = true
+						a._expectingValue = false
+						a._currentValueQuoteSymbol = l 
+						a._strAcc = ''
+					}
+					else
+						throw new Error(`Badly formatted attribute string ${s}. Error before ${l} character at position ${idx + 1}`)
+				}
+				else
+					a._strAcc += l
+			}
+			else {
+				if (l == a._currentValueQuoteSymbol) { // found the end of a value
+					a[a._currentAttr] = a._strAcc
+					a._isInsideAString = false
+					a._expectingValue = false
+					a._currentValueQuoteSymbol = `'`
+					a._currentAttr = ''
+					a._strAcc = ''
+				}
+				else
+					a._strAcc += l
+			}
+			return a
+		}, {
+			_isInsideAString: false,
+			_expectingValue: false,
+			_currentValueQuoteSymbol: `'`,
+			_currentAttr: '',
+			_strAcc:''
+		}))
+	: 	{}
+
 module.exports = {
-	getAST
+	getAST,
+	removeDelimiters,
+	getAttributes
 }
 
 

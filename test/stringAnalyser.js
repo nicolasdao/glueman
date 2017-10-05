@@ -6,7 +6,40 @@
  * LICENSE file in the root directory of this source tree.
 */
 const { assert } = require('chai')
-const { getAST } = require('../src/stringAnalyser')
+const { getAST, removeDelimiters, getAttributes } = require('../src/stringAnalyser')
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
+	describe('#removeDelimiters', () => 
+		it(`Should remove the delimiters from a string.`, () => {
+			/*eslint-enable */
+			const text = '<glue src="./components/nav.html">Hello World<glue></glue>'
+			assert.equal(removeDelimiters(text, /^<glue/, /<\/glue>|\/>$/), ' src="./components/nav.html">Hello World<glue>')
+			const text2 = '<glue src="./components/nav.html">'
+			assert.equal(removeDelimiters(text2, /^<glue/, /\/>|>$/), ' src="./components/nav.html"')
+			const text3 = '<glue src="./components/nav.html"/>'
+			assert.equal(removeDelimiters(text3, /^<glue/, /\/>|>$/), ' src="./components/nav.html"')
+		})))
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
+	describe('#getAttributes', () => 
+		it(`Should convert a string of attributes to an object with all those attributes.`, () => {
+			/*eslint-enable */
+			let text = ` src  ='./folder/index.html' root=  "./main"`
+			let attr = getAttributes(text)
+			assert.equal(attr.src, './folder/index.html')
+			assert.equal(attr.root, './main')
+
+			text = ` src  ='./folder/index.html' root=  "./main" random='hello "world"'`
+			attr = getAttributes(text)
+			assert.equal(attr.src, './folder/index.html')
+			assert.equal(attr.root, './main')
+			assert.equal(attr.random, 'hello "world"')
+
+			text = ` src  ='./folder/index.html' root=  "./main" random='hello\'s "world"'`
+			assert.throw(() => getAttributes(text), Error, `Badly formatted attribute string  src  ='./folder/index.html' root=  "./main" random='hello's "world"'. Error before " character at position 62`)
+		})))
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
