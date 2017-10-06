@@ -90,10 +90,14 @@ program
 				const origDst = dst
 				copyFolderToDst(src, dst, { silent: true })
 					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
-						.then(() => watchFolder(src, null, () => {
-							copyFolderToDst(origSrc, origDst, { silent: true })
-								.then(({ dst }) => glueAllFiles(dst, { indent: true }))
-						})))
+						.then(() => {
+							console.log(`Listening to source folder ${src.italic.bold}.`.green)
+							console.log(`Re-gluing destination ${dst.italic.bold} automatically.`.green)
+							return watchFolder(src, null, (e,f) => {
+								console.log(`File ${f.italic.bold} changed. Re-gluing destination.`.cyan)
+								copyFolderToDst(origSrc, origDst, { silent: true })
+									.then(({ dst }) => glueAllFiles(dst, { indent: true }))
+							})}))
 			})
 	})
 
