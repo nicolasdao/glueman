@@ -6,7 +6,15 @@
  * LICENSE file in the root directory of this source tree.
 */
 const { assert } = require('chai')
-const { getAST, removeDelimiters, getAttributes } = require('../src/stringAnalyser')
+const { getAST, removeDelimiters, getAttributes, getPropertyValue } = require('../src/stringAnalyser')
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
+	describe('#getPropertyValue', () => 
+		it(`Should return an object's property based on a string representing the property names.`, () => {
+			/*eslint-enable */
+			assert.equal(getPropertyValue({ a: { b: { c: 34 } }, k: 23 }, 'a.b.c'), 34)
+		})))
 
 /*eslint-disable */
 describe('stringAnalyser', () => 

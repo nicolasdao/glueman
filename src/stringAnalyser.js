@@ -275,10 +275,13 @@ const getAttributes = s => s
 		}))
 	: 	{}
 
+const getPropertyValue = (obj, propStr) => (obj && propStr) ? propStr.split('.').reduce((a,prop) => a[prop], obj) : null
+
 module.exports = {
 	getAST,
 	removeDelimiters,
-	getAttributes
+	getAttributes,
+	getPropertyValue
 }
 
 
