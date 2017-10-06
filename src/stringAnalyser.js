@@ -224,64 +224,170 @@ const indentString = (s,i) => s && i ? s.replace(/\n/g, `\n${i}`) : s
  */
 const getAttributes = s => s 
 	? 	(o => {
-			let out = {}
-			for(let i in o) {
-				if (i != '_isInsideAString' && i != '_expectingValue' && i != '_currentValueQuoteSymbol' && i != '_currentAttr' && i != '_strAcc')
-					out[i] = o[i]
+		let out = {}
+		for(let i in o) {
+			if (i != '_isInsideAString' && i != '_expectingValue' && i != '_currentValueQuoteSymbol' && i != '_currentAttr' && i != '_strAcc')
+				out[i] = o[i]
+		}
+		return out
+	})
+	/*eslint-disable */
+	([...s].reduce((a,l, idx) => {
+		/*eslint-enable */
+		if (!a._isInsideAString) { // we're not inside a string
+			if (l == '=') { // found an attribute
+				a._currentAttr = a._strAcc.trim().split(' ').reverse()[0]
+				if (a._currentAttr == '')
+					throw new Error(`Badly formatted attribute string ${s}. Error before = character at position ${idx + 1}.`)
+				a._expectingValue = true
+				a._strAcc = ''
 			}
-			return out
-		})
-		([...s].reduce((a,l, idx) => {
-			if (!a._isInsideAString) { // we're not inside a string
-				if (l == '=') { // found an attribute
-					a._currentAttr = a._strAcc.trim().split(' ').reverse()[0]
-					if (a._currentAttr == '')
-						throw new Error(`Badly formatted attribute string ${s}. Error before = character at position ${idx + 1}.`)
-					a._expectingValue = true
-					a._strAcc = ''
-				}
-				else if ((l == '"' || l == "'")) { // found a potential start or end of a value
-					if (a._expectingValue) {
-						a._isInsideAString = true
-						a._expectingValue = false
-						a._currentValueQuoteSymbol = l 
-						a._strAcc = ''
-					}
-					else
-						throw new Error(`Badly formatted attribute string ${s}. Error before ${l} character at position ${idx + 1}`)
-				}
-				else
-					a._strAcc += l
-			}
-			else {
-				if (l == a._currentValueQuoteSymbol) { // found the end of a value
-					a[a._currentAttr] = a._strAcc
-					a._isInsideAString = false
+			else if ((l == '"' || l == '\'')) { // found a potential start or end of a value
+				if (a._expectingValue) {
+					a._isInsideAString = true
 					a._expectingValue = false
-					a._currentValueQuoteSymbol = `'`
-					a._currentAttr = ''
+					a._currentValueQuoteSymbol = l 
 					a._strAcc = ''
 				}
 				else
-					a._strAcc += l
+					throw new Error(`Badly formatted attribute string ${s}. Error before ${l} character at position ${idx + 1}`)
 			}
-			return a
-		}, {
-			_isInsideAString: false,
-			_expectingValue: false,
-			_currentValueQuoteSymbol: `'`,
-			_currentAttr: '',
-			_strAcc:''
-		}))
+			else
+				a._strAcc += l
+		}
+		else {
+			if (l == a._currentValueQuoteSymbol) { // found the end of a value
+				a[a._currentAttr] = a._strAcc
+				a._isInsideAString = false
+				a._expectingValue = false
+				a._currentValueQuoteSymbol = '\''
+				a._currentAttr = ''
+				a._strAcc = ''
+			}
+			else
+				a._strAcc += l
+		}
+		return a
+	}, {
+		_isInsideAString: false,
+		_expectingValue: false,
+		_currentValueQuoteSymbol: '\'',
+		_currentAttr: '',
+		_strAcc:''
+	}))
 	: 	{}
 
 const getPropertyValue = (obj, propStr) => (obj && propStr) ? propStr.split('.').reduce((a,prop) => a[prop], obj) : null
+
+const topLevelXmlStrToObject = s => {
+	if (s) {
+		return [...s].reduce((a,l) => {
+			const newLine = l == '\n'
+			a._currentColumn++
+			if (newLine) {
+				a._currentLine++
+				a._currentColumn = 0
+			}
+			if (a._lookingForOpeningProp) {
+				const foundNewProp = l == '<'
+				if (l == ' ' || newLine || l == '\t') {
+					if (newLine)
+						a._currentIndent = ''
+					else
+						a._currentIndent += l
+				}
+				else if (foundNewProp) {
+					a._acquiringNewProp = true
+					a._lookingForOpeningProp = false
+				}
+				else 
+					throw new Error(`Badly formatted string (position ${a._currentLine}:${a._currentColumn}). Expecting '<' but found '${l}'`)
+			}
+			else {
+				if (a._acquiringNewProp) {
+					if (l.match(/[a-zA-Z0-9_]/)) // this is a valid character for a property name, so add it
+						a._currentPropName += l
+					else if (l == '>') { // found a closing signal that we have an entire property name
+						a._acquiringNewProp = false
+						a._currentPropValue = ''
+					}
+					else 
+						throw new Error(`Badly formatted string (position ${a._currentLine}:${a._currentColumn}). A valid property name can only contain alphanumerical characters as well as '_'.`)
+				}
+				else { // looking for a closing of that prop as well as building its value
+					const previousCharWasClosure = a._previousChar == '<'
+					a._currentPropValue += l
+					if (previousCharWasClosure && l == '/') { // might have found the beginning of the current property's closure
+						a._currentPropClosure = ''
+						a._buildingClosure = true
+						a._currentPropIndent = a._currentIndent
+					}
+					else if (a._buildingClosure) {
+						if (l == '>') { // found a complete closure
+							if (a._currentPropName == a._currentPropClosure) { // bingo, we have found a valid property
+								a.result[a._currentPropName] = removeExcessIndent(a._currentPropValue.slice(0, -(a._currentPropName.length + 3)), a._currentPropIndent)
+								// reset the entire process, and start looking for another prop again.
+								a._lookingForOpeningProp = true
+								a._currentIndent = ''
+								a._currentPropIndent = ''
+								a._acquiringNewProp = false
+								a._currentPropName = ''
+								a._currentPropValue = ''
+								a._currentPropClosure = ''
+							}
+							else {
+								a._buildingClosure = false
+								a._currentPropClosure == ''
+							}
+						}
+						else { // still building the closure
+							a._currentPropClosure += l
+							if (a._currentPropName.indexOf(a._currentPropClosure) != 0) { // this does not match the prop name. Reset.
+								a._currentPropClosure = ''
+								a._buildingClosure = false
+							}
+						}	
+					}
+				}
+			}
+
+			a._previousChar = l
+			return a
+		}, 
+		{
+			_currentLine: 0,
+			_currentColumn: 0,
+			_previousChar: '',
+			_lookingForOpeningProp: true,
+			_currentIndent: '',
+			_currentPropIndent: '',
+			_acquiringNewProp: false,
+			_currentPropName: '',
+			_currentPropValue: '',
+			_currentPropClosure: '',
+			_buildingClosure: false,
+			result: {}
+		}).result
+	}
+	else
+		return {}
+}
+
+const removeExcessIndent = (s,indent) => {
+	if (s && indent) {
+		const r = new RegExp('\n' + indent, 'g')
+		return s.replace(r, '\n')
+	}
+	else
+		return s
+}
 
 module.exports = {
 	getAST,
 	removeDelimiters,
 	getAttributes,
-	getPropertyValue
+	getPropertyValue,
+	topLevelXmlStrToObject
 }
 
 

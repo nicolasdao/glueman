@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
 */
 const { assert } = require('chai')
-const { getAST, removeDelimiters, getAttributes, getPropertyValue } = require('../src/stringAnalyser')
+const { getAST, removeDelimiters, getAttributes, getPropertyValue, topLevelXmlStrToObject } = require('../src/stringAnalyser')
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
@@ -31,22 +31,61 @@ describe('stringAnalyser', () =>
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
+	describe('#topLevelXmlStrToObject', () => 
+		it(`Should convert an XML string to an object whose properties are the top level XML nodes.`, () => {
+			/*eslint-enable */
+			let text = `
+				<menuone>
+					<h1>Home</h1>
+					<ul>
+						<li>Products</li>
+						<li>Services</li>
+						<li>Vision</li>
+					</ul>
+				</menuone>
+				<menutwo>
+					<h1>About</h1>
+				</menutwo>
+			`
+
+			let answer = {
+				menuone: `
+	<h1>Home</h1>
+	<ul>
+		<li>Products</li>
+		<li>Services</li>
+		<li>Vision</li>
+	</ul>
+`,
+				menutwo: `
+	<h1>About</h1>
+`
+			}
+
+			let val = topLevelXmlStrToObject(text)
+			assert.isOk(val)
+			assert.equal(val.menuone, answer.menuone)
+			assert.equal(val.menutwo, answer.menutwo)
+		})))
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
 	describe('#getAttributes', () => 
 		it(`Should convert a string of attributes to an object with all those attributes.`, () => {
 			/*eslint-enable */
-			let text = ` src  ='./folder/index.html' root=  "./main"`
+			let text = ' src  =\'./folder/index.html\' root=  "./main"'
 			let attr = getAttributes(text)
 			assert.equal(attr.src, './folder/index.html')
 			assert.equal(attr.root, './main')
 
-			text = ` src  ='./folder/index.html' root=  "./main" random='hello "world"'`
+			text = ' src  =\'./folder/index.html\' root=  "./main" random=\'hello "world"\''
 			attr = getAttributes(text)
 			assert.equal(attr.src, './folder/index.html')
 			assert.equal(attr.root, './main')
 			assert.equal(attr.random, 'hello "world"')
 
-			text = ` src  ='./folder/index.html' root=  "./main" random='hello\'s "world"'`
-			assert.throw(() => getAttributes(text), Error, `Badly formatted attribute string  src  ='./folder/index.html' root=  "./main" random='hello's "world"'. Error before " character at position 62`)
+			text = ' src  =\'./folder/index.html\' root=  "./main" random=\'hello\'s "world"\''
+			assert.throw(() => getAttributes(text), Error, 'Badly formatted attribute string  src  =\'./folder/index.html\' root=  "./main" random=\'hello\'s "world"\'. Error before " character at position 62')
 		})))
 
 /*eslint-disable */
@@ -187,7 +226,7 @@ describe('stringAnalyser', () =>
 				</glue>`
 
 			const v2 = 
-				`<glue src="./hello/footer.html"/>`
+				'<glue src="./hello/footer.html"/>'
 
 			const ast = getAST(text, { open: /<glue(.*?)>/, close: /<\/glue>|\/>/ })
 			assert.equal(ast.children.length, 2, '\'ast.children\' should contain a single child.')

@@ -1,9 +1,9 @@
 const path = require('path')
 const { files:ignore } = require('./ignore.json')
 const { getFileAsString, getAllFilesInFolder, writeToFile, fileExists } = require('./fileManager').promise
-const { getAST, removeDelimiters, getAttributes, getPropertyValue } = require('./stringAnalyser')
+const { getAST, removeDelimiters, getAttributes, getPropertyValue, topLevelXmlStrToObject } = require('./stringAnalyser')
 
-const executeBlock = (attrStr, contantStr, dirname, params, options) => {
+const replaceTemplate = (attrStr, contantStr, dirname, params, options) => {
 	if (attrStr) {
 		const attrProps = ((attrStr.trim() + ' ').match(/^\.(.*?)\s/) || [null, null])[1]
 		if (attrProps) // this is a property
@@ -11,11 +11,13 @@ const executeBlock = (attrStr, contantStr, dirname, params, options) => {
 		else { // this is a reference to a template file
 			const attr = getAttributes(attrStr)
 			if (attr.src) {
+				const contentProps = topLevelXmlStrToObject(contantStr)
+				const args = Object.assign({}, attr, contentProps)
 				const filePath = path.join(dirname, attr.src)
 				return fileExists(filePath)
 					.then(
-						() => glueFile(filePath, attr, options).then(c => (c || { text: '' }).text),
-						() => { throw new Error(`Error in block string. Undefined file ${filePath} in block ${blockStr}`) })
+						() => glueFile(filePath, args, options).then(c => (c || { text: '' }).text),
+						() => { throw new Error(`Error in block string. Undefined file ${filePath} in attributes ${attrStr}`) })
 			}
 			else
 				return Promise.resolve('')
@@ -70,7 +72,7 @@ const glueFile = (filePath, params = {}, options = {}) => {
 							? () => Promise.resolve(originalText)
 							: (params, options) => ast.reassemble((blockStr) => {
 								const { attr, content:c } = getAttributesAndContent(blockStr)
-								return executeBlock(attr, c, dirname, params, options)
+								return replaceTemplate(attr, c, dirname, params, options)
 							}, options)
 
 						content = {

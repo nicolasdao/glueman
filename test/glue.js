@@ -19,10 +19,10 @@ const answer_fsdf422 =
 <body>
 	<nav>
 		<div src="./static/img/cool.png">
-			Hello
+			<span>Home</span>
 		</div>
 		<div>
-			World
+			<span>About</span>
 		</div>
 	</nav>
 	<h1>Hello World</h1>
