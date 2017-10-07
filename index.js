@@ -90,13 +90,43 @@ program
 				const origDst = dst
 				copyFolderToDst(src, dst, { silent: true })
 					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
-						.then(() => {
+						.then(dstFiles => {
+							let memoizedFiles = (dstFiles || []).map(f => ({
+								srcFile: f.file.replace(dst, src),
+								dstFile: f.file,
+								original: f.original,
+								content: f.content
+							}))
+							dstFiles = null // delete that big object to prevent memory leak.
 							console.log(`Listening to source folder ${src.italic.bold}.`.green)
 							console.log(`Re-gluing destination ${dst.italic.bold} automatically.`.green)
 							return watchFolder(src, null, (e,f) => {
-								console.log(`File ${f.italic.bold} changed. Re-gluing destination.`.cyan)
-								copyFolderToDst(origSrc, origDst, { silent: true })
-									.then(({ dst }) => glueAllFiles(dst, { indent: true }))
+								console.log(`File ${f.italic.bold} changed.`.cyan)
+								const start = Date.now()
+								getFileAsString(f)
+									.then(content => {
+										let existingFile = memoizedFiles.find(x => x.srcFile == f)
+										if (!existingFile) {
+											console.log(`File ${f.italic.bold} can't be found in memory. Can't glue it into destination.`.red)
+											/*eslint-disable */
+										process.exit()
+										/*eslint-enable */
+										}
+										existingFile.original = content // update memoizedFiles with the new content 
+										glueAllFiles(memoizedFiles, { indent: true })
+											.then(dstFiles => {
+												memoizedFiles = (dstFiles || []).map(f => ({
+													srcFile: f.file.replace(dst, src),
+													dstFile: f.file,
+													original: f.original,
+													content: f.content
+												}))
+												console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan)
+											})
+									// copyFolderToDst(origSrc, origDst, { silent: true })
+									// 	.then(({ dst }) => glueAllFiles(dst, { indent: true }))
+									// 	.then(() => console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan))
+									})
 							})}))
 			})
 	})

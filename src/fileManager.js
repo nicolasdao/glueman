@@ -130,7 +130,7 @@ const watchFolder = (folderPath, ignore, action) => {
 
 	fileExists(folderPath)
 		.then(
-			() => getAllFilesInFolder(folderPath, ignore).then(files => files.forEach(f => fs.watch(f, (eventType, filename) => action(eventType, filename)))),
+			() => getAllFilesInFolder(folderPath, ignore).then(files => files.forEach(f => fs.watch(f, eventType => action(eventType, f)))),
 			() => { throw new Error(`Folder '${folderPath}' does not exist!`) }
 		)
 }

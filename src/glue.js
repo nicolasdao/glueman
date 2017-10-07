@@ -35,18 +35,20 @@ let _fileContent = {}
  * text is the original text of the 'filePath' or if it had to be modified because it contained other templates that had to be
  * glued (i.e. resolved) to.
  * 
- * @param  {String} 	filePath 				Absolute path of the file.
- * @param  {Object} 	params   				Parameters in case the file contains other 'value' templates. Example: If 'filePath' 
- *                               				contains a template as such: <glue.somevar/>, and if params = { somevar:'hello' }, 
- *                               			 	then <glue.somevar/> will be replaced by 'hello' in the content of 'filePath'
- * @param  {Object} 	options					Options that need to be passed to the 'reassemble' function of the AST object.
- * @param  {Function} 	options.transform		Function that takes a single String argument (reassembled child) and return a String.
- * @param  {Boolean} 	options.indent 			Maintain indentation for each reinjected reassembled child.
+ * @param  {String} 	filePath 					Absolute path of the file.
+ * @param  {Object} 	params   					Parameters in case the file contains other 'value' templates. Example: If 'filePath' 
+ *                               					contains a template as such: <glue.somevar/>, and if params = { somevar:'hello' }, 
+ *                               			 		then <glue.somevar/> will be replaced by 'hello' in the content of 'filePath'
+ * @param  {Object} 	options						Options that need to be passed to the 'reassemble' function of the AST object.
+ * @param  {Function} 	options.transform			Function that takes a single String argument (reassembled child) and return a String.
+ * @param  {Boolean} 	options.indent 				Maintain indentation for each reinjected reassembled child.
+ * @param  {Boolean} 	options.original 			Original content from 'filePath'
  * @return {Object}     output
- * @return {String}     output.text 			Reconstructed content for file 'filePath'
- * @return {Boolean}    output.originalContent  Indicated whether or not the reconstructed file had to be reconstructed (false) or hadn't(true)
- *                                              which means that the original content of located at 'filePath' didn't contain any references to
- *                                              any templates.
+ * @return {String}     output.text 				Reconstructed content for file 'filePath'
+ * @return {String}     output.originalContent 		Original content from file 'filePath'
+ * @return {Boolean}    output.isOriginalContent  	Indicated whether or not the reconstructed file had to be reconstructed (false) or hadn't(true)
+ *                                                 	which means that the original content of located at 'filePath' didn't contain any references to
+ *                                                  any templates.
  */
 const glueFile = (filePath, params = {}, options = {}) => {
 	if (!filePath)
@@ -56,35 +58,47 @@ const glueFile = (filePath, params = {}, options = {}) => {
 	
 	return Promise.resolve(_fileContent[filePath])
 		.then(content => {
-			let originalContent = true
+			let isOriginalContent = true
 
 			if (!content) {
 				const open = /<glue(.*?)>/
 				const close = /<\/glue>|\/>/
 
-				return getFileAsString(filePath)
+				return (options.original ? Promise.resolve(options.original) : getFileAsString(filePath))
 					.then(originalText => {
-						const ast = getAST(originalText, { open, close })
+						const cachedContentHasNotChanged = options.content && options.content == options.original
+						if (cachedContentHasNotChanged) {
+							content = {
+								getContent: () => Promise.resolve(options.content),
+								originalContent: options.original,
+								isOriginalContent: true
+							}
+						}
+						else {
+							const ast = getAST(originalText, { open, close })
 
-						originalContent = ast.children.length == 0
+							isOriginalContent = ast.children.length == 0
 
-						const getContent = originalContent
-							? () => Promise.resolve(originalText)
-							: (params, options) => ast.reassemble((blockStr) => {
-								const { attr, content:c } = getAttributesAndContent(blockStr)
-								return replaceTemplate(attr, c, dirname, params, options)
-							}, options)
+							const getContent = isOriginalContent
+								? () => Promise.resolve(originalText)
+								: (params, options) => ast.reassemble((blockStr) => {
+									const { attr, content:c } = getAttributesAndContent(blockStr)
+									return replaceTemplate(attr, c, dirname, params, options)
+								}, options)
 
-						content = {
-							getContent,
-							originalContent
+							content = {
+								getContent,
+								originalContent: originalText,
+								isOriginalContent
+							}
 						}
 						_fileContent[filePath] = content
 
 						return content.getContent(params, options)
 							.then(text => ({
 								text,
-								originalContent: content.originalContent
+								originalContent: content.originalContent,
+								isOriginalContent: content.isOriginalContent
 							}))
 					})
 			}
@@ -92,7 +106,8 @@ const glueFile = (filePath, params = {}, options = {}) => {
 			return content.getContent(params, options)
 				.then(text => ({
 					text,
-					originalContent: content.originalContent
+					originalContent: content.originalContent,
+					isOriginalContent: content.isOriginalContent
 				}))
 		})
 }
@@ -123,15 +138,38 @@ const getAttributesAndContent = s => {
 const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&')
 /*eslint-enable */
 
-const glueAllFiles = (rootPath, options) => {
+const glueAllFiles = (arg, options) => {
 	_fileContent = {}
-	const ignoreList = (ignore || []).map(i => path.join('**',i))
-	return getAllFilesInFolder(rootPath, ignoreList)
-		.then(files => Promise.all(files.map(f => 
-			glueFile(f, null, options).then(fileContent => {
-				if (fileContent && !fileContent.originalContent) 
-					return writeToFile(f, fileContent.text)
-			}))))
+	if (!arg)
+		throw new Error('arg is required.')
+	// Need to load all files in a folder and overide them, even if they haven't changed.
+	if (typeof(arg) == 'string') { 
+		const rootPath = arg
+		const ignoreList = (ignore || []).map(i => path.join('**',i))
+		return getAllFilesInFolder(rootPath, ignoreList)
+			.then(files => Promise.all(files.map(f => 
+				glueFile(f, null, options).then(fileContent => {
+					if (fileContent && !fileContent.isOriginalContent) 
+						writeToFile(f, fileContent.text)
+					return { file: f, content:fileContent.text, original: fileContent.originalContent }
+				}))))
+	}
+	// We only focus on a specific list of files for which we already know the existing content.
+	else if (arg.length != undefined) { 
+		if (arg.every(x => x.dstFile && x.content && x.original)) {
+			return Promise.all(arg.map(a => 
+				glueFile(a.dstFile, null, Object.assign({ original: a.original, content: a.content }, options)).then(fileContent => {
+					if (fileContent && a.content != fileContent.text)
+						writeToFile(a.dstFile, fileContent.text)
+					return { file: a.dstFile, content: fileContent.text, original: fileContent.originalContent }
+				})
+			))
+		}
+		else
+			throw new Error('Invalid argument \'arg\'. If \'arg\' is an array, each item must be an object containing those three properties: \'dstFile\', \'content\' and \'original\'.')
+	}
+	else 
+		throw new Error('Invalid argument \'arg\'. \'arg\' can only be a string representing a folder\'s path or an array of object with at least three properties \'dstFile\', \'content\' and \'original\'.')
 }
 
 module.exports = {
