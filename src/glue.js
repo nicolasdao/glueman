@@ -63,6 +63,7 @@ const glueFile = (filePath, params = {}, options = {}) => {
 			if (!content) {
 				const open = /<glue(.*?)>/
 				const close = /<\/glue>|\/>/
+				const openStartWith = '<glue'
 
 				return (options.original ? Promise.resolve(options.original) : getFileAsString(filePath))
 					.then(originalText => {
@@ -75,9 +76,13 @@ const glueFile = (filePath, params = {}, options = {}) => {
 							}
 						}
 						else {
-							const ast = getAST(originalText, { open, close })
-
-							isOriginalContent = ast.children.length == 0
+							let ast
+							if (originalText.indexOf(openStartWith) >= 0) {
+								ast = getAST(originalText, { open, close })
+								isOriginalContent = ast.children.length == 0
+							}
+							else
+								isOriginalContent = true
 
 							const getContent = isOriginalContent
 								? () => Promise.resolve(originalText)

@@ -86,8 +86,6 @@ program
 				/*eslint-enable */
 				}
 
-				const origSrc = src
-				const origDst = dst
 				copyFolderToDst(src, dst, { silent: true })
 					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
 						.then(dstFiles => {
@@ -123,9 +121,6 @@ program
 												}))
 												console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan)
 											})
-									// copyFolderToDst(origSrc, origDst, { silent: true })
-									// 	.then(({ dst }) => glueAllFiles(dst, { indent: true }))
-									// 	.then(() => console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan))
 									})
 							})}))
 			})
