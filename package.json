@@ -1,6 +1,6 @@
 {
   "name": "glueman",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha.0",
   "description": "Glue files together",
   "main": "index.js",
   "contributors": [
