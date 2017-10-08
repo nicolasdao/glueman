@@ -1,3 +1,7 @@
+#!/usr/bin/env node
+
+'use strict'
+
 const program = require('commander')
 const readline = require('readline')
 const path = require('path')
@@ -58,7 +62,7 @@ program
 				/*eslint-enable */
 				}
 
-				copyFolderToDst(src, dst, { silent: true })
+				copyFolderToDst(src, dst, { silent: true, deleteDst: true })
 					.then(({ dst }) => {
 						glueAllFiles(dst, { indent: true })
 					})
@@ -86,7 +90,7 @@ program
 				/*eslint-enable */
 				}
 
-				copyFolderToDst(src, dst, { silent: true })
+				copyFolderToDst(src, dst, { silent: true, deleteDst: true })
 					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
 						.then(dstFiles => {
 							let memoizedFiles = (dstFiles || []).map(f => ({

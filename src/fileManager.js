@@ -1,4 +1,5 @@
 const fs = require('fs')
+const rimraf = require('rimraf')
 const path = require('path')
 const { ncp } = require('ncp')
 const glob = require('glob')
@@ -71,11 +72,13 @@ const createDir = (dirname, cb) =>
 			})
 	})
 
-const copyFolderToDst = (src, dst, options) => {
+const deleteFolder = f => new Promise(onSuccess => rimraf(f, () => onSuccess()))
+
+const copyFolderToDst = (src, dst, options = {}) => {
 	const absSrc = getPath(src)
 	const absDst = getPath(dst)
 	
-	return new Promise(onSuccess => {
+	return (options.deleteDst ? deleteFolder(absDst) : Promise.resolve(1)).then(() => new Promise(onSuccess => {
 		fs.exists(absSrc, (exists) => {
 			if (!exists) {
 				console.log(`Source folder ${absSrc} does not exist.`.red)
@@ -93,7 +96,7 @@ const copyFolderToDst = (src, dst, options) => {
 							/*eslint-enable */
 						}
 
-						if (!options || !options.silent)
+						if (!options.silent)
 							console.log(`Files located under ${absSrc} successfully copied under folder ${absDst}`.green)
 
 						// This piece of code seems unecessary, but without it, any subsequent glob call in a chained promise 
@@ -104,7 +107,7 @@ const copyFolderToDst = (src, dst, options) => {
 					})
 				})
 		})
-	})
+	}))
 }
 
 const fileExists = p => new Promise((onSuccess, onFailure) => fs.exists(p, exists => exists ? onSuccess(p) : onFailure(p)))
