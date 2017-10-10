@@ -6,7 +6,13 @@
  * LICENSE file in the root directory of this source tree.
 */
 const { assert } = require('chai')
-const { getAST, removeDelimiters, getAttributes, getPropertyValue, topLevelXmlStrToObject } = require('../src/stringAnalyser')
+const { 
+	getAST, 
+	removeDelimiters, 
+	getAttributes, 
+	getPropertyValue, 
+	topLevelXmlStrToObject, 
+	getLinesData } = require('../src/stringAnalyser')
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
@@ -14,6 +20,42 @@ describe('stringAnalyser', () =>
 		it(`Should return an object's property based on a string representing the property names.`, () => {
 			/*eslint-enable */
 			assert.equal(getPropertyValue({ a: { b: { c: 34 } }, k: 23 }, 'a.b.c'), 34)
+		})))
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
+	describe('#getLinesData: 01', () => 
+		it(`Should find all details of the position of all new lines in a string.`, () => {
+			/*eslint-enable */
+			const text = `Hello
+				My name is nic
+				and I'm testing this function
+				   while messing up with the indentation.`
+
+			const linesData = getLinesData(text)
+			assert.equal(linesData.length, 4, 'There should be 3 new lines detected.')
+			assert.equal(text.slice(0, linesData[1].pos), 'Hello', 'The first line does not match.')
+			assert.equal(text.slice(linesData[1].pos+1, linesData[2].pos), '				My name is nic', 'The second line does not match.')
+			assert.equal(linesData[0].indentation, '', 'Wrong first line indentation')
+			assert.equal(linesData[1].indentation, '				', 'Wrong second line indentation')
+			assert.equal(linesData[2].indentation, '				', 'Wrong third line indentation')
+			assert.equal(linesData[3].indentation, '				   ', 'Wrong fourth line indentation')
+		})))
+
+/*eslint-disable */
+describe('stringAnalyser', () => 
+	describe('#getLinesData: 02', () => 
+		it(`Should find the correct line based on any char position.`, () => {
+			/*eslint-enable */
+			const text = `Hello
+				My name is nic
+				and I'm testing this function
+				   while messing up with the indentation.`
+
+			const linesData = getLinesData(text)
+			const pos = text.match(/nic/).index + 2
+			const nicLine = linesData.get(pos)
+			assert.equal(nicLine.line, 2, `The end of the word 'nic' should be on line 2.`)
 		})))
 
 /*eslint-disable */
@@ -93,16 +135,15 @@ describe('stringAnalyser', () =>
 	describe('#getAST: 01', () => 
 		it(`Should extract an abstract syntax tree based on a custom pair of opening and closing string delimiters.`, () => {
 			/*eslint-enable */
-			const text = 'This is <<the world <<of <<tomorrow>> <<where <<the birds and the elephants>>>> can >> fly>>. We\'re very excited to move >> forward. <<Another day <<another <<story>>>>'
+			const text = 'This is <<the world <<of <<tomorrow>> <<where <<the birds and the elephants>>>> can >> fly>>. We\'re very excited to move >> forward. <<Another day <<another <<story>>>>>>'
 			
-			const ast = getAST(text, { open: '<<', close: '>>' })
-
+			//const ast = getAST(text, { open: '<<', close: '>>' })
+			const ast = getAST(text, '<<', '>>')
 			assert.equal(typeof(ast), 'object', 'getAST should return an object in any cases.')
-			assert.isOk(ast.children, 'The \'children\' property of \'ast\' should exist.')
-			assert.isOk(ast.children.length != undefined, 'The \'children\' property of \'ast\' should always be an non-nullable array.')
-			assert.equal(ast.children.length, 2, '\'ast\' should have two children.')
+			assert.isOk(ast.length != undefined, 'The \'children\' property of \'ast\' should always be an non-nullable array.')
+			assert.equal(ast.length, 2, '\'ast\' should have two children.')
 
-			const ast_01 = ast.children[0]
+			const ast_01 = ast[0]
 			assert.isOk(ast_01.children, 'The \'children\' property of \'ast_01\' should exist.')
 			assert.isOk(ast_01.children.length != undefined, 'The \'children\' property of \'ast_01\' should always be an non-nullable array.')
 			assert.equal(ast_01.children.length, 1, '\'ast_01\' should have single child.')
@@ -113,7 +154,7 @@ describe('stringAnalyser', () =>
 			assert.equal(ast_01_child_01.children.length, 2, '\'ast_01_child_01\' should have two children.')
 
 			const ast_01_child_01_child_01 = ast_01_child_01.children[0]
-			assert.equal(ast_01_child_01_child_01.text, '<<tomorrow>>')
+			assert.equal(ast_01_child_01_child_01.body, 'tomorrow')
 			assert.isOk(ast_01_child_01_child_01.children, 'The \'children\' property of \'ast_01_child_01_child_01\' should exist.')
 			assert.isOk(ast_01_child_01_child_01.children.length != undefined, 'The \'children\' property of \'ast_01_child_01_child_01\' should always be an non-nullable array.')
 			assert.equal(ast_01_child_01_child_01.children.length, 0, '\'ast_01_child_01_child_01\' shouldn\'t have any children.')
@@ -123,16 +164,15 @@ describe('stringAnalyser', () =>
 			assert.isOk(ast_01_child_01_child_02.children.length != undefined, 'The \'children\' property of \'ast_01_child_01_child_02\' should always be an non-nullable array.')
 			assert.equal(ast_01_child_01_child_02.children.length, 1, '\'ast_01_child_01_child_02\' should have one child.')
 
-			const ast_02 = ast.children[1]
+			const ast_02 = ast[1]
 			assert.isOk(ast_02.children, 'The \'children\' property of \'ast_02\' should exist.')
 			assert.isOk(ast_02.children.length != undefined, 'The \'children\' property of \'ast_02\' should always be an non-nullable array.')
 			assert.equal(ast_02.children.length, 1, '\'ast_02\' should have single child.')
 
 			const ast_02_child_01 = ast_02.children[0]
-			assert.equal(ast_02_child_01.text, '<<story>>')
+			assert.equal(ast_02_child_01.body, 'another <<story>>')
 			assert.isOk(ast_02_child_01.children, 'The \'children\' property of \'ast_02_child_01\' should exist.')
-			assert.isOk(ast_02_child_01.children.length != undefined, 'The \'children\' property of \'ast_02_child_01\' should always be an non-nullable array.')
-			assert.equal(ast_02_child_01.children.length, 0, '\'ast_02_child_01\' shouldn\'t have any children.')
+			assert.equal(ast_02_child_01.children.length, 1, '\'ast_02_child_01\' should have one child.')
 		})))
 
 /*eslint-disable */
@@ -157,15 +197,15 @@ describe('stringAnalyser', () =>
 			</html>`
 
 			const v = 
-				`[<]./nav.html({
+				`./nav.html({
 					"arg": {
 						"root":"."
 					}
-				})[>]`
+				})`
 
-			const ast = getAST(text, { open: '[<]', close: '[>]' })
-			assert.equal(ast.children.length, 1, '\'ast.children\' should contain a single child.')
-			assert.equal(ast.children[0].text, v, '\'ast.children[0].text\' is not equal to the expected value.')
+			const ast = getAST(text, '[<]', '[>]')
+			assert.equal(ast.length, 1, '\'ast.children\' should contain a single child.')
+			assert.equal(ast[0].body, v, '\'ast.children[0].text\' is not equal to the expected value.')
 		})))
 
 /*eslint-disable */
@@ -192,12 +232,12 @@ describe('stringAnalyser', () =>
 			<p>[<]I'm nic[>]<p>
 			</html>`
 
-			const ast = getAST(text, { open: '[<]', close: '[>]' })
-			assert.equal(ast.children.length, 4, '\'ast.children\' should contain two children.')
-			assert.equal(ast.children[0].indent, '				', '\'ast.children[0].indent\' is not equal to the expected value.')
-			assert.equal(ast.children[1].indent, '', '\'ast.children[1].indent\' is not equal to the expected value.')
-			assert.equal(ast.children[2].indent, '   ', '\'ast.children[2].indent\' is not equal to the expected value.')
-			assert.equal(ast.children[3].indent, '			', '\'ast.children[3].indent\' is not equal to the expected value.')
+			const ast = getAST(text, '[<]', '[>]')
+			assert.equal(ast.length, 4, '\'ast.children\' should contain four children.')
+			assert.equal(ast[0].indent, '				', '\'ast.children[0].indent\' is not equal to the expected value.')
+			assert.equal(ast[1].indent, '', '\'ast.children[1].indent\' is not equal to the expected value.')
+			assert.equal(ast[2].indent, '   ', '\'ast.children[2].indent\' is not equal to the expected value.')
+			assert.equal(ast[3].indent, '			', '\'ast.children[3].indent\' is not equal to the expected value.')
 		})))
 
 /*eslint-disable */

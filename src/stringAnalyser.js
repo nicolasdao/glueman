@@ -5,165 +5,167 @@
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree.
 */
-const { generate } = require('shortid')
+const _ = require('lodash')
+//const { generate } = require('shortid')
 
-const newId = () => `%___|${generate().replace(/[-|_]/g, '')}|___%`
+//const newId = () => `%___|${generate().replace(/[-|_]/g, '')}|___%`
 
-const getAST = (s, delimiter) => {
-	if (!delimiter)
-		throw new Error('\'delimiter\' is required.')
-	const { open, close } = delimiter
-	if (!open)
-		throw new Error('\'delimiter.open\' is required.')
-	if (!close)
-		throw new Error('\'delimiter.close\' is required.')
-	if (open == close)
-		throw new Error('\'delimiter.open\' and \'delimiter.close\' cannot be the same.')
+// const getAST = (s, delimiter) => {
+// 	if (!delimiter)
+// 		throw new Error('\'delimiter\' is required.')
+// 	const { open, close } = delimiter
+// 	if (!open)
+// 		throw new Error('\'delimiter.open\' is required.')
+// 	if (!close)
+// 		throw new Error('\'delimiter.close\' is required.')
+// 	if (open == close)
+// 		throw new Error('\'delimiter.open\' and \'delimiter.close\' cannot be the same.')
 
-	if (!s)
-		return createAST('', [])
-	else {
-		const openIsRegEx = open instanceof RegExp
-		const closeIsRegEx = close instanceof RegExp
-		const openSize = openIsRegEx ? 0 : open.length
-		const closeSize = closeIsRegEx ? 0 : close.length
-		let openStringCursorCounter = 0
-		let closeStringCursorCounter = 0
-		let openRegExMatch = null // This is only used for a regex open. When a match is found, it is stored there.
-		let closeRegExMatch = null // This is only used for a regex close. When a match is found, it is stored there.
-		// Loop through each character
+// 	if (!s)
+// 		return createAST('', [])
+// 	else {
+// 		const openIsRegEx = open instanceof RegExp
+// 		const closeIsRegEx = close instanceof RegExp
+// 		const openSize = openIsRegEx ? 0 : open.length
+// 		const closeSize = closeIsRegEx ? 0 : close.length
+// 		let openStringCursorCounter = 0
+// 		let closeStringCursorCounter = 0
+// 		let openRegExMatch = null // This is only used for a regex open. When a match is found, it is stored there.
+// 		let closeRegExMatch = null // This is only used for a regex close. When a match is found, it is stored there.
+// 		// Loop through each character
 
-		const ASTBreakdown = [...s].reduce((a,l) => {
-			// A. Manage the indentation of the current line
-			// A.1. We've found a new line. Reset indentation
-			if (l == '\n') {
-				a.indent = ''
-				a.inIndentationArea = true
-			}
-			else if (a.inIndentationArea && (l == '\t' || l == ' '))
-				a.indent += l
-			else if (a.inIndentationArea)
-				a.inIndentationArea = false
+// 		const ASTBreakdown = [...s].reduce((a,l) => {
+// 			// A. Manage the indentation of the current line
+// 			// A.1. We've found a new line. Reset indentation
+// 			if (l == '\n') {
+// 				a.indent = ''
+// 				a.inIndentationArea = true
+// 			}
+// 			else if (a.inIndentationArea && (l == '\t' || l == ' '))
+// 				a.indent += l
+// 			else if (a.inIndentationArea)
+// 				a.inIndentationArea = false
 
-			// B. Manage the value of the current open and close cursor
-			// B.1. Manage the open cursor
-			if (openIsRegEx) {
-				a.openStringCursor += l
-				openRegExMatch = (a.openStringCursor.match(open) || [])[0] 
-			}
-			else {
-				if (a.openStringCursorSizeReached) {
-					a.openStringCursor = a.openStringCursor.substr(1) + l
-				}
-				else {
-					a.openStringCursor += l 
-					openStringCursorCounter++
-					a.openStringCursorSizeReached = openStringCursorCounter == openSize
-				}
-			}
-			// B.2. Manage the close cursor
-			if (closeIsRegEx) {
-				a.closeStringCursor += l
-				closeRegExMatch = (a.closeStringCursor.match(close) || [])[0]
-			}
-			else {
-				if (a.closeStringCursorSizeReached) {
-					a.closeStringCursor = a.closeStringCursor.substr(1) + l
-				}
-				else {
-					a.closeStringCursor += l 
-					closeStringCursorCounter++
-					a.closeStringCursorSizeReached = closeStringCursorCounter == closeSize
-				}
-			}
+// 			// B. Manage the value of the current open and close cursor
+// 			// B.1. Manage the open cursor
+// 			if (openIsRegEx) {
+// 				a.openStringCursor += l
+// 				openRegExMatch = (a.openStringCursor.match(open) || [])[0] 
+// 			}
+// 			else {
+// 				if (a.openStringCursorSizeReached) {
+// 					a.openStringCursor = a.openStringCursor.substr(1) + l
+// 				}
+// 				else {
+// 					a.openStringCursor += l 
+// 					openStringCursorCounter++
+// 					a.openStringCursorSizeReached = openStringCursorCounter == openSize
+// 				}
+// 			}
+// 			// B.2. Manage the close cursor
+// 			if (closeIsRegEx) {
+// 				a.closeStringCursor += l
+// 				closeRegExMatch = (a.closeStringCursor.match(close) || [])[0]
+// 			}
+// 			else {
+// 				if (a.closeStringCursorSizeReached) {
+// 					a.closeStringCursor = a.closeStringCursor.substr(1) + l
+// 				}
+// 				else {
+// 					a.closeStringCursor += l 
+// 					closeStringCursorCounter++
+// 					a.closeStringCursorSizeReached = closeStringCursorCounter == closeSize
+// 				}
+// 			}
 
-			// C. Accumulate the text of the current AST
-			a.currentAST.text += l
+// 			// C. Accumulate the text of the current AST
+// 			a.currentAST.text += l
 
-			// D. Decide whether or not we need to update the current AST
-			const currentCursorStartsAnAST = openRegExMatch || a.openStringCursor == open
-			const currentCursorConfirmAnAST = closeRegExMatch || a.closeStringCursor == close
+// 			// D. Decide whether or not we need to update the current AST
+// 			const currentCursorStartsAnAST = openRegExMatch || a.openStringCursor == open
+// 			const currentCursorConfirmAnAST = closeRegExMatch || a.closeStringCursor == close
 
-			// D.1. Update must occur because we may have found a new AST
-			if (currentCursorStartsAnAST) {
-				// 1. Adjust the AST value
-				a.currentAST.text = a.currentAST.text.slice(0, openRegExMatch ? -openRegExMatch.length : -openSize)
-				// 2. Save the AST to the stack
-				a.AST_Stack.push(Object.assign({}, a.currentAST))
-				// 3. Reset the current AST
-				a.currentAST = { id: newId() , open: openRegExMatch || open, indent: a.indent, text: openRegExMatch || open, children:[] }
-				// 4. Reset the current open cursor to make sure there are no overlaps
-				a.openStringCursor = ''
-				a.openStringCursorSizeReached = false
-				openStringCursorCounter = 0
-			}
-			// D.2. Update must occur because we have found a the end of an AST
-			if (currentCursorConfirmAnAST && !a.currentAST.root) {
-				// 1. Get the latest saved AST
-				const latestAST = a.AST_Stack.pop()
-				// 2. Add the current AST as a child of the latestAST
-				const newAST = Object.assign({}, a.currentAST)
-				newAST.close = closeRegExMatch || close
-				latestAST.children.push(createAST(newAST))
-				// 3. Replace the current AST by its id 
-				latestAST.text += a.currentAST.id 
-				a.currentAST = latestAST
-				// 4. Reset the current close cursor to make sure there are no overlaps
-				a.closeStringCursor = ''
-				a.closeStringCursorSizeReached = false
-				closeStringCursorCounter = 0
-			}
+// 			// D.1. Update must occur because we may have found a new AST
+// 			if (currentCursorStartsAnAST) {
+// 				// 1. Adjust the AST value
+// 				a.currentAST.text = a.currentAST.text.slice(0, openRegExMatch ? -openRegExMatch.length : -openSize)
+// 				// 2. Save the AST to the stack
+// 				a.AST_Stack.push(Object.assign({}, a.currentAST))
+// 				// 3. Reset the current AST
+// 				a.currentAST = { id: newId() , open: openRegExMatch || open, indent: a.indent, text: openRegExMatch || open, children:[] }
+// 				// 4. Reset the current open cursor to make sure there are no overlaps
+// 				a.openStringCursor = ''
+// 				a.openStringCursorSizeReached = false
+// 				openStringCursorCounter = 0
+// 			}
+// 			// D.2. Update must occur because we have found a the end of an AST
+// 			if (currentCursorConfirmAnAST && !a.currentAST.root) {
+// 				// 1. Get the latest saved AST
+// 				const latestAST = a.AST_Stack.pop()
+// 				// 2. Add the current AST as a child of the latestAST
+// 				const newAST = Object.assign({}, a.currentAST)
+// 				newAST.close = closeRegExMatch || close
+// 				latestAST.children.push(createAST(newAST))
+// 				// 3. Replace the current AST by its id 
+// 				latestAST.text += a.currentAST.id 
+// 				a.currentAST = latestAST
+// 				// 4. Reset the current close cursor to make sure there are no overlaps
+// 				a.closeStringCursor = ''
+// 				a.closeStringCursorSizeReached = false
+// 				closeStringCursorCounter = 0
+// 			}
 
-			return a
+// 			return a
 
-		}, { 
-			indent: '',
-			inIndentationArea: true,
-			openStringCursor:'', 
-			openStringCursorSizeReached: false, 
-			closeStringCursor:'', 
-			closeStringCursorSizeReached: false,
-			currentAST: { id: newId() , indent: '', text:'', open: null, close: null, children:[], root: true },
-			AST_Stack:[]
-		})
+// 		}, { 
+// 			indent: '',
+// 			inIndentationArea: true,
+// 			openStringCursor:'', 
+// 			openStringCursorSizeReached: false, 
+// 			closeStringCursor:'', 
+// 			closeStringCursorSizeReached: false,
+// 			currentAST: { id: newId() , indent: '', text:'', open: null, close: null, children:[], root: true },
+// 			AST_Stack:[]
+// 		})
 		
-		// E. If there are some unresolve AST, then undo them and merge them back down.
-		if (ASTBreakdown.AST_Stack.length > 0) { 
-			const l = ASTBreakdown.AST_Stack.length
-			for (let i = 0; i < l; i++) {
-				const latestAST = ASTBreakdown.AST_Stack.pop()
-				// There are real valid blocks here, so we just need to treat them as part as the
-				// previous AST
-				if (ASTBreakdown.currentAST.children.length > 0) {  
-					latestAST.text += ASTBreakdown.currentAST.text
-					latestAST.children.push(...ASTBreakdown.currentAST.children)
-				}
-				else { // this was actually invalid. Just rebuild and simply merge with the previous AST
-					const s = reassembleASTSync(ASTBreakdown.currentAST)
-					latestAST.text += s
-				}
+// 		// E. If there are some unresolve AST, then undo them and merge them back down.
+// 		if (ASTBreakdown.AST_Stack.length > 0) { 
+// 			const l = ASTBreakdown.AST_Stack.length
+// 			for (let i = 0; i < l; i++) {
+// 				const latestAST = ASTBreakdown.AST_Stack.pop()
+// 				// There are real valid blocks here, so we just need to treat them as part as the
+// 				// previous AST
+// 				if (ASTBreakdown.currentAST.children.length > 0) {  
+// 					latestAST.text += ASTBreakdown.currentAST.text
+// 					latestAST.children.push(...ASTBreakdown.currentAST.children)
+// 				}
+// 				else { // this was actually invalid. Just rebuild and simply merge with the previous AST
+// 					const s = reassembleASTSync(ASTBreakdown.currentAST)
+// 					latestAST.text += s
+// 				}
 
-				ASTBreakdown.currentAST = latestAST
-			}
-		}
+// 				ASTBreakdown.currentAST = latestAST
+// 			}
+// 		}
 
-		return createAST({ 
-			indent: ASTBreakdown.currentAST.indent, 
-			text: ASTBreakdown.currentAST.text, 
-			children: ASTBreakdown.currentAST.children 
-		})
-	}
-}
+// 		return createAST({ 
+// 			indent: ASTBreakdown.currentAST.indent, 
+// 			text: ASTBreakdown.currentAST.text, 
+// 			children: ASTBreakdown.currentAST.children 
+// 		})
+// 	}
+// }
 
-const createAST = ({ id, indent, text, children, open, close }) => ({
-	id: id || 'root',
-	open,
-	close,
-	indent: indent || '',
-	text,
-	children,
-	reassemble: (transform, options) => reassembleAST({ text, children }, Object.assign({ transform }, options || {}))
-})
+
+// const createAST = ({ id, indent, text, children, open, close }) => ({
+// 	id: id || 'root',
+// 	open,
+// 	close,
+// 	indent: indent || '',
+// 	text,
+// 	children,
+// 	reassemble: (transform, options) => reassembleAST({ text, children }, Object.assign({ transform }, options || {}))
+// })
 
 const removeDelimiters = (s, open, close) => s.replace(open, '').replace(close, '')
 
@@ -182,47 +184,277 @@ const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '
  * @param  {Boolean} options.indent 		Maintain indentation for each reinjected reassembled child.
  * @return {String}         				Reassembled AST
  */
-const reassembleAST = (AST, options = {}) => {
-	if (AST && AST.text) {
-		const { transform, indent } = options
-		if (AST.children.length > 0) {
-			const reassembleJobs = AST.children.map(ast => reassembleAST(ast, options)
-				.then(s => transform ? transform(s) : s)
-				.then(s => indent ? indentString(s, ast.indent) : s)
-				.then(s => ({ id: ast.id, value: s })))
+// const reassembleAST = (AST, options = {}) => {
+// 	if (AST && AST.text) {
+// 		const { transform, indent } = options
+// 		if (AST.children.length > 0) {
+// 			const reassembleJobs = AST.children.map(ast => reassembleAST(ast, options)
+// 				.then(s => transform ? transform(s) : s)
+// 				.then(s => indent ? indentString(s, ast.indent) : s)
+// 				.then(s => ({ id: ast.id, value: s })))
 
-			return Promise.all(reassembleJobs)
-				.then(values => values.reduce((s, ast) => s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value), AST.text))
+// 			return Promise.all(reassembleJobs)
+// 				.then(values => values.reduce((s, ast) => s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value), AST.text))
+// 		}
+// 		else 
+// 			return Promise.resolve(AST.text)
+// 	}
+// 	else
+// 		return Promise.resolve('')
+// }
+
+// const reassembleASTSync = (AST, options = {}) => {
+// 	if (AST && AST.text) {
+// 		const { indent } = options
+// 		const transform = null
+// 		if (AST.children.length > 0) {
+// 			return AST.children.map(ast => ({ 
+// 				id: ast.id, 
+// 				value: (s => indent ? indentString(s, ast.indent) : s)((s => transform ? transform(s) : s)(reassembleAST(ast, options)))
+// 			})) 
+// 				.reduce((s, ast) => {
+// 					const g = s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value)
+// 					return g
+// 				}, AST.text)
+// 		}
+// 		else
+// 			return AST.text
+// 	}
+// 	else
+// 		return ''
+// }
+
+//const indentString = (s,i) => s && i ? s.replace(/\n/g, `\n${i}`) : s
+
+const getNextOpening = (str, openings, closures) => {
+	const result = _.sortBy(openings.map((o, idx) => Object.assign({ idx, opening: o }, (str.match(o) || { index: -1 }))), x => (x.index * 100) + x.idx)[0]
+	if (result.index == -1)
+		return null
+	else 
+		return {
+			opening: result.opening,
+			closure: closures[result.idx],
+			open: result[0],
+			pos: result.index
 		}
-		else 
-			return Promise.resolve(AST.text)
+}
+
+const getLinesData = str => {
+	if (str) { 
+		const lines = str.split('\n')
+		const firstLine = lines[0]
+		const firstLineLength = firstLine.length
+		const agg = lines.slice(1).reduce((acc,l,idx) => {
+			const lg = l.length
+			const line = idx + 2
+			acc.charPosToLines = Array.from(Array(lg+1).keys()).reduce((a,v) => { a[acc.cursor + v] = line; return a }, acc.charPosToLines)
+			acc.result.push({
+				pos: acc.cursor,
+				line: line,
+				indentation: l.match(/^(.*?)[^\s\t]/)[1]
+			})
+			acc.cursor += lg + 1
+			return acc
+		},{ 
+			cursor: firstLineLength, 
+			result: [{
+				pos: 0,
+				line: 1,
+				indentation: firstLine.match(/^(.*?)[^\s\t]/)[1]
+			}], 
+			charPosToLines: Array.from(Array(firstLineLength).keys()).reduce((acc,v) => { acc[v] = 1; return acc },{})
+		})
+
+		agg.result.get = posChar => {
+			const line = agg.charPosToLines[posChar]
+			return agg.result[line - 1]
+		}
+
+		return agg.result
+	}
+	else
+		return []
+}
+
+const getAllOpeningsAndClosures = (str, openings, closures) => {
+	const linesData = getLinesData(str)
+	let openCursor = 0
+	let closeCursor = 0
+	const openingsAndClosures = []
+	while (true) {
+		const nextOpening = getNextOpening(str, openings, closures)
+		if (nextOpening) {
+			const openingLineData = linesData.find(l => l.pos)
+			openCursor += nextOpening.pos
+			openingsAndClosures.push(Object.assign({}, nextOpening, { pos: openCursor }))
+			openCursor += nextOpening.open.length
+			str = str.slice(nextOpening.pos + nextOpening.open.length)
+			if (nextOpening.closure) {
+				const closeStr = closeCursor > openCursor 
+					// the pevious closing delimiter was found beyond the newly found starting delimiter, which means we've already 
+					// captured the immediate next closing delimiter. That's why we need to readjust 'str' to make sure we look for 
+					// another closing delimiter.
+					? str.slice(closeCursor - openCursor) 
+					: str
+				const closureMatch = closeStr.match(nextOpening.closure)
+				if (closureMatch) {
+					closeCursor = (closeCursor > openCursor ? closeCursor : openCursor) + closureMatch.index + closureMatch[0].length
+					openingsAndClosures.push({ closure: nextOpening.closure, close: closureMatch[0], pos: closeCursor })
+				}
+			}
+		}
+		else
+			return _.sortBy(_.uniqBy(openingsAndClosures, x => x.pos), x => x.pos)
+	}
+}
+
+const organizeDelimiters =  (str, openings, closures) => {
+	const r = getAllOpeningsAndClosures(str, openings, closures)
+	const result = r.reduce((a,i) => {
+		if (i.opening) {
+			if (i.closure) {
+				const { opening, closure, open, pos, children } = a._currentAST
+				a._stack.push({ opening, closure, open, pos, children: children || [] })
+				i.pos = { start: i.pos }
+				a._currentAST = i
+				a._currentAST.children = []
+			}
+			else {
+				i.children = []
+				const { opening, closure, open, pos: start, children } = i
+				a._currentAST.children.push({ 
+					opening, 
+					closure, 
+					open, 
+					body: '',
+					pos: { 
+						start, 
+						body: null,
+						end: start + open.length 
+					}, 
+					children: children || [], 
+					close: '' 
+				})
+			}
+		}
+		else {
+			if (a._currentAST.closure != i.closure) {
+				a._currentAST = a._stack.pop()
+				while (a._currentAST.closure != i.closure) {
+					a._currentAST = a._stack.pop()
+					if (!a._currentAST)
+						throw new Error(`Badly formatted file. Closing delimiter ${i.close} in position ${i.pos} does not have any starting delimiter.`)
+				}
+			}
+				
+			const latest = a._stack.pop()
+			if (!latest)
+				throw new Error(`Badly formatted file. Closing delimiter ${i.close} in position ${i.pos} does not have any starting delimiter.`)
+			
+			const bodyStart = a._currentAST.pos.start + a._currentAST.open.length
+			const bodyEnd = i.pos - i.close.length
+			latest.children.push(Object.assign({ close: i.close, body: str.slice(bodyStart, bodyEnd) }, a._currentAST, { 
+				pos: { 
+					start: a._currentAST.pos.start, 
+					end: i.pos + i.close.length,
+					body: {
+						start: bodyStart,
+						end: bodyEnd
+					} 
+				} 
+			}))
+			a._currentAST = latest
+		}
+		return a
+	},{
+		_currentAST: {
+			opening: null,
+			closure: null,
+			open: null,
+			pos: null,
+			children: []
+		},
+		_stack:[]
+	})
+
+	if (result._stack.length > 0)
+		throw new Error(`Missing closing delimiter at position ${result._currentAST.pos.start}`)
+
+	return result._currentAST.children
+}
+
+const getAST = (str, openings, closures) => {
+	let ast = []
+	if (str && openings && closures) {
+		const typeO = typeof(openings)
+		const typeC = typeof(closures)
+		const typeOIsRegExp = openings instanceof RegExp
+		const typeCIsRegExp = closures instanceof RegExp
+
+		if (((typeO == 'string' && !typeCIsRegExp) || (typeC == 'string' && !typeOIsRegExp)) &&  typeO != typeC)
+			throw new Error(`'openings' and 'closures' must have the same types (either a string or an object).`)
+		if (typeO == 'object' && !typeOIsRegExp && typeC == 'object' && !typeCIsRegExp && (openings.length != undefined || closures.length != undefined) && (openings.length == undefined || closures.length == undefined))
+			throw new Error(`If 'openings' or 'closures' is an array, then both of them must be an array.`)
+		if (typeO == 'object' && !typeOIsRegExp && typeC == 'object' && !typeCIsRegExp && openings.length && closures.length && openings.length != closures.length)
+			throw new Error(`If 'openings' and 'closures' are both arrays, they should be of the same size.`)
+
+		let opens = openings
+		let closes = closures 
+		if (typeO == 'string' || typeOIsRegExp) 
+			opens = [openings]
+			
+		if (typeC == 'string' || typeCIsRegExp) 
+			closes = [closures]
+
+		opens = opens.map(o => typeof(o) == 'string' ? escapeRegExp(o) : o)
+		closes = closes.map(o => typeof(o) == 'string' ? escapeRegExp(o) : o)
+
+		ast = organizeDelimiters(str, opens, closes)
+	}
+
+	ast.input = str 
+	ast.glue = (transform, options) => glue(ast, transform, options)
+	return ast
+}
+
+const glue = (ast, transform, options={}) => {
+	if (ast && ast.input) {
+		if (ast.length > 0) {
+			return ast.reduce((p, delimiter) => p.then(acc => {
+				const head = ast.input.slice(acc.cursor, delimiter.pos.start)
+				const open = delimiter.open
+				const close = delimiter.close
+				acc.cursor = delimiter.pos.end
+				if (transform) {
+					let newAst = (delimiter.children || []).map(x => x)
+					newAst.input = ast.input
+					const { start, end } = (delimiter.pos.body || { start: 0, end: 0 })
+					return glue(newAst, transform, { start, end })
+						.then(body => transform(open, body, close))
+						.then(v => head + v)
+						.then(v => ({ cursor: acc.cursor, file: acc.file + v }))
+				}
+				else {
+					const body = delimiter.pos.body ? ast.input.slice(delimiter.pos.body.start, delimiter.pos.body.end) : ''
+					return Promise.resolve({ cursor: acc.cursor, file: acc.file + head + open + body + close })
+				}
+			}), Promise.resolve({
+				cursor: options.start || 0,
+				file: ''
+			}))
+			.then(({ cursor, file }) => {
+				if (options.end && cursor < options.end) 
+					return file + ast.input.slice(cursor, options.end)
+				else
+					return file + ast.input.slice(cursor)
+			})
+		}
+		else
+			return Promise.resolve(ast.input)
 	}
 	else
 		return Promise.resolve('')
-}
-
-const reassembleASTSync = (AST, options = {}) => {
-	if (AST && AST.text) {
-		const { indent } = options
-		const transform = null
-		if (AST.children.length > 0) {
-			return AST.children.map(ast => ({ 
-				id: ast.id, 
-				value: (s => indent ? indentString(s, ast.indent) : s)((s => transform ? transform(s) : s)(reassembleAST(ast, options)))
-			})) 
-				.reduce((s, ast) => {
-					const g = s.replace(new RegExp(escapeRegExp(ast.id), 'g'), ast.value)
-					return g
-				}, AST.text)
-		}
-		else
-			return AST.text
-	}
-	else
-		return ''
-}
-
-const indentString = (s,i) => s && i ? s.replace(/\n/g, `\n${i}`) : s
+} 
 
 /**
  * Gets an object that represent all the attributes from a string (e.g. " src  ='./folder/index.html' root='./main' " -> { src: './folder/index.html', root: './main' })
@@ -394,7 +626,8 @@ module.exports = {
 	removeDelimiters,
 	getAttributes,
 	getPropertyValue,
-	topLevelXmlStrToObject
+	topLevelXmlStrToObject,
+	getLinesData
 }
 
 
