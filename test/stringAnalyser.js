@@ -204,8 +204,8 @@ describe('stringAnalyser', () =>
 				})`
 
 			const ast = getAST(text, '[<]', '[>]')
-			assert.equal(ast.length, 1, '\'ast.children\' should contain a single child.')
-			assert.equal(ast[0].body, v, '\'ast.children[0].text\' is not equal to the expected value.')
+			assert.equal(ast.length, 1, '\'ast\' should contain a single child.')
+			assert.equal(ast[0].body, v, '\'ast[0].body\' is not equal to the expected value.')
 		})))
 
 /*eslint-disable */
@@ -234,10 +234,10 @@ describe('stringAnalyser', () =>
 
 			const ast = getAST(text, '[<]', '[>]')
 			assert.equal(ast.length, 4, '\'ast.children\' should contain four children.')
-			assert.equal(ast[0].indent, '				', '\'ast.children[0].indent\' is not equal to the expected value.')
-			assert.equal(ast[1].indent, '', '\'ast.children[1].indent\' is not equal to the expected value.')
-			assert.equal(ast[2].indent, '   ', '\'ast.children[2].indent\' is not equal to the expected value.')
-			assert.equal(ast[3].indent, '			', '\'ast.children[3].indent\' is not equal to the expected value.')
+			assert.equal(ast[0].line.indentation, '				', '\'ast[0].line.indentation\' is not equal to the expected value.')
+			assert.equal(ast[1].line.indentation, '', '\'ast[1].line.indentation\' is not equal to the expected value.')
+			assert.equal(ast[2].line.indentation, '   ', '\'ast[2].line.indentation\' is not equal to the expected value.')
+			assert.equal(ast[3].line.indentation, '			', '\'ast[3].line.indentation\' is not equal to the expected value.')
 		})))
 
 /*eslint-disable */
@@ -268,19 +268,23 @@ describe('stringAnalyser', () =>
 			const v2 = 
 				'<glue src="./hello/footer.html"/>'
 
-			const ast = getAST(text, { open: /<glue(.*?)>/, close: /<\/glue>|\/>/ })
-			assert.equal(ast.children.length, 2, '\'ast.children\' should contain a single child.')
-			assert.equal(ast.children[0].text, v, '\'ast.children[0].text\' is not equal to the expected value.')
-			assert.equal(ast.children[1].text, v2, '\'ast.children[1].text\' is not equal to the expected value.')
+			const ast = getAST(text, [/<glue(.*?)\/>/, /<glue(.*?)>/], ['', /<\/glue>/] )
+			assert.equal(ast.length, 2, '\'ast\' should contain two children.')
+			assert.equal(ast[0].open, `<glue src='./nav.html'>`, '\'ast[0].open\' is not equal to the expected value.')
+			assert.equal(ast[0].body, `\n					<p>This is fun</p>\n				`, '\'ast[0].body\' is not equal to the expected value.')
+			assert.equal(ast[0].close, `</glue>`, '\'ast[0].close\' is not equal to the expected value.')
+			assert.equal(ast[1].open, `<glue src="./hello/footer.html"/>`, '\'ast[1].open\' is not equal to the expected value.')
+			assert.equal(ast[1].body, '', '\'ast[1].body\' is not equal to the expected value.')
+			assert.equal(ast[1].close, '', '\'ast[1].close\' is not equal to the expected value.')
 		})))
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
-	describe('#reassemble: 01', () => 
+	describe('#glue: 01', () => 
 		it(`Should be able to rebuild the original text.`, () => {
 			/*eslint-enable */
-			const text = 'This is <<the world <<of <<tomorrow>> <<where <<the birds and the elephants>>>> can >> fly>>. We\'re very excited to move >> forward. <<Another day <<another <<story>>>>'
-			const ast = getAST(text, { open: '<<', close: '>>' })
+			const text = 'This is <<the world <<of <<tomorrow>> <<where <<the birds and the elephants>>>> can >> fly>>. We\'re very excited to move >> forward. <<Another day <<another <<story>>>>>>'
+			const ast = getAST(text, '<<', '>>', { filename: 'text.txt' })
 
 			const text2 = `
 			<!DOCTYPE html>
@@ -297,23 +301,20 @@ describe('stringAnalyser', () =>
 				<h1>Hello World</h1>
 			</body>
 			</html>`
-			const ast2 = getAST(text2, { open: '[<]', close: '[>]' })
+			const ast2 = getAST(text2, '[<]', '[>]')
 			
-			return Promise.all([ast.reassemble(), ast2.reassemble()])
+			return Promise.all([ast.glue(), ast2.glue()])
 				.then(values => {
-					assert.equal(values[0], text, '\'reassemble\' should rebuild the exact same string as the origin where the AST is from.')
-					assert.equal(values[1], text2, '\'reassemble\' should rebuild the exact same HTML as the origin where the AST is from.')
+					assert.equal(values[0], text, '\'glue\' should rebuild the exact same string as the origin where the AST is from.')
+					assert.equal(values[1], text2, '\'glue\' should rebuild the exact same HTML as the origin where the AST is from.')
 				})
 		})))
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
-	describe('#reassemble: 02', () => 
+	describe('#glue: 02', () => 
 		it(`Should be able to rebuild the AST in a different way than the original source.`, () => {
 			/*eslint-enable */
-			
-			const open = '[<]'
-			const close = '[>]'
 
 			const text = `
 			<!DOCTYPE html>
@@ -322,14 +323,14 @@ describe('stringAnalyser', () =>
 				<title>This is Great!</title>
 			</head>
 			<body>
-				${open}./nav.html({
+				[<]./nav.html({
 					"arg": {
 						"root":".",
-						"content": "<div>${open}../../hello.html${close}</div>"
+						"content": "<div>[<]../../hello.html[>]</div>"
 					}
-				})${close}
-				${open}${open}<h1>Hello World<h1>${close}
-				<p>We use the ${open} to fuck around, and then even more ${open} ${open}</p>
+				})[>]
+				[<]<h1>Hello World<h1>[>]
+				<p>We use the to fuck around, and then even more</p>
 			</body>
 			</html>`
 
@@ -341,28 +342,25 @@ describe('stringAnalyser', () =>
 			</head>
 			<body>
 				<h1>Hello Yes</h1>
-				${open}
-				<p>We use the ${open} to fuck around, and then even more ${open} ${open}</p>
+				--
+				<p>We use the to fuck around, and then even more</p>
 			</body>
 			</html>`
 
-			const ast = getAST(text, { open: open, close: close })
-			const transform = s => s.indexOf(`${open}./`) == 0 ? '<h1>Hello Yes</h1>' : ''
+			const ast = getAST(text, '[<]', '[>]' )
+			const transform = (o,b,c) => b.indexOf('./') == 0 ? '<h1>Hello Yes</h1>' : '--'
 			
-			return ast.reassemble(transform)
+			return ast.glue(transform)
 				.then(value => {
-					assert.equal(value, answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+					assert.equal(value, answer, '\'glue\' should rebuild the HTML based on the \'tranform\' rule.')
 				})
 		})))
 
 /*eslint-disable */
 describe('stringAnalyser', () => 
-	describe('#reassemble: 03', () => 
+	describe('#glue: 03', () => 
 		it(`Should be able to rebuild the AST in a different way than the original source, while preserving indentation.`, () => {
 			/*eslint-enable */
-			
-			const open = '[<]'
-			const close = '[>]'
 
 			const text = `
 			<!DOCTYPE html>
@@ -371,14 +369,14 @@ describe('stringAnalyser', () =>
 				<title>This is Great!</title>
 			</head>
 			<body>
-				${open}./nav.html({
+				[<]./nav.html({
 					"arg": {
 						"root":".",
-						"content": "<div>${open}../../hello.html${close}</div>"
+						"content": "<div>[<]../../hello.html[>]</div>"
 					}
-				})${close}
-				${open}${open}<h1>Hello World<h1>${close}
-				<p>We use the ${open} to fuck around, and then even more ${open} ${open}</p>
+				})[>]
+				[<]<h1>Hello World<h1>[>]
+				<p>We use the to fuck around, and then even more</p>
 			</body>
 			</html>`
 
@@ -391,19 +389,19 @@ describe('stringAnalyser', () =>
 			<body>
 				<h1>Hello</h1>
 				<h1>Yes</h1>
-				${open}
-				<p>We use the ${open} to fuck around, and then even more ${open} ${open}</p>
+				--
+				<p>We use the to fuck around, and then even more</p>
 			</body>
 			</html>`
 
-			const ast = getAST(text, { open: open, close: close })
-			const transform = s => s.indexOf(`${open}./`) == 0 
+			const ast = getAST(text, '[<]', '[>]')
+			const transform = (o,b,c) => b.indexOf(`./`) == 0 
 				? '<h1>Hello</h1>\n<h1>Yes</h1>' 
-				: ''
+				: '--'
 
-			return ast.reassemble(transform, { indent: true })
+			return ast.glue(transform, { indent: true })
 				.then(value => {
-					assert.equal(value, answer, '\'reassemble\' should rebuild the HTML based on the \'tranform\' rule.')
+					assert.equal(value, answer, '\'glue\' should rebuild the HTML based on the \'tranform\' rule.')
 				})
 		})))
 

@@ -227,8 +227,8 @@ const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '
 //const indentString = (s,i) => s && i ? s.replace(/\n/g, `\n${i}`) : s
 
 const getNextOpening = (str, openings, closures) => {
-	const result = _.sortBy(openings.map((o, idx) => Object.assign({ idx, opening: o }, (str.match(o) || { index: -1 }))), x => (x.index * 100) + x.idx)[0]
-	if (result.index == -1)
+	const result = _.sortBy(openings.map((o, idx) => Object.assign({ idx, opening: o }, (str.match(o) || { index: -1 }))), x => (x.index * 100) + x.idx).filter(x => x.index >= 0)[0]
+	if (!result || result.index == -1)
 		return null
 	else 
 		return {
@@ -251,7 +251,7 @@ const getLinesData = str => {
 			acc.result.push({
 				pos: acc.cursor,
 				line: line,
-				indentation: l.match(/^(.*?)[^\s\t]/)[1]
+				indentation: lg == 0 ? '' : ((l.match(/^(.*?)[^\s\t]/) || [])[1] || '')
 			})
 			acc.cursor += lg + 1
 			return acc
@@ -260,7 +260,7 @@ const getLinesData = str => {
 			result: [{
 				pos: 0,
 				line: 1,
-				indentation: firstLine.match(/^(.*?)[^\s\t]/)[1]
+				indentation: firstLineLength == 0 ? '' : ((firstLine.match(/^(.*?)[^\s\t]/) || [])[1] || '')
 			}], 
 			charPosToLines: Array.from(Array(firstLineLength).keys()).reduce((acc,v) => { acc[v] = 1; return acc },{})
 		})
@@ -284,9 +284,8 @@ const getAllOpeningsAndClosures = (str, openings, closures) => {
 	while (true) {
 		const nextOpening = getNextOpening(str, openings, closures)
 		if (nextOpening) {
-			const openingLineData = linesData.find(l => l.pos)
 			openCursor += nextOpening.pos
-			openingsAndClosures.push(Object.assign({}, nextOpening, { pos: openCursor }))
+			openingsAndClosures.push(Object.assign({ line: linesData.get(openCursor) }, nextOpening, { pos: openCursor }))
 			openCursor += nextOpening.open.length
 			str = str.slice(nextOpening.pos + nextOpening.open.length)
 			if (nextOpening.closure) {
@@ -299,7 +298,7 @@ const getAllOpeningsAndClosures = (str, openings, closures) => {
 				const closureMatch = closeStr.match(nextOpening.closure)
 				if (closureMatch) {
 					closeCursor = (closeCursor > openCursor ? closeCursor : openCursor) + closureMatch.index + closureMatch[0].length
-					openingsAndClosures.push({ closure: nextOpening.closure, close: closureMatch[0], pos: closeCursor })
+					openingsAndClosures.push({ line: linesData.get(closeCursor), closure: nextOpening.closure, close: closureMatch[0], pos: closeCursor })
 				}
 			}
 		}
@@ -308,20 +307,20 @@ const getAllOpeningsAndClosures = (str, openings, closures) => {
 	}
 }
 
-const organizeDelimiters =  (str, openings, closures) => {
+const organizeDelimiters =  (str, openings, closures, options={}) => {
 	const r = getAllOpeningsAndClosures(str, openings, closures)
 	const result = r.reduce((a,i) => {
 		if (i.opening) {
 			if (i.closure) {
-				const { opening, closure, open, pos, children } = a._currentAST
-				a._stack.push({ opening, closure, open, pos, children: children || [] })
+				const { opening, closure, open, pos, children, line } = a._currentAST
+				a._stack.push({ opening, closure, open, pos, children: children || [], line })
 				i.pos = { start: i.pos }
 				a._currentAST = i
 				a._currentAST.children = []
 			}
 			else {
 				i.children = []
-				const { opening, closure, open, pos: start, children } = i
+				const { opening, closure, open, pos: start, children, line } = i
 				a._currentAST.children.push({ 
 					opening, 
 					closure, 
@@ -333,7 +332,8 @@ const organizeDelimiters =  (str, openings, closures) => {
 						end: start + open.length 
 					}, 
 					children: children || [], 
-					close: '' 
+					close: '',
+					line
 				})
 			}
 		}
@@ -377,13 +377,14 @@ const organizeDelimiters =  (str, openings, closures) => {
 		_stack:[]
 	})
 
-	if (result._stack.length > 0)
-		throw new Error(`Missing closing delimiter at position ${result._currentAST.pos.start}`)
+	if (result._stack.length > 0) {
+		throw new Error(`Missing closing delimiter ${options.filename ? `in file ${options.filename} ` : ''}at ${result._currentAST.line.line}:${result._currentAST.pos.start - result._currentAST.line.pos}`)
+	}
 
 	return result._currentAST.children
 }
 
-const getAST = (str, openings, closures) => {
+const getAST = (str, openings, closures, options) => {
 	let ast = []
 	if (str && openings && closures) {
 		const typeO = typeof(openings)
@@ -409,7 +410,7 @@ const getAST = (str, openings, closures) => {
 		opens = opens.map(o => typeof(o) == 'string' ? escapeRegExp(o) : o)
 		closes = closes.map(o => typeof(o) == 'string' ? escapeRegExp(o) : o)
 
-		ast = organizeDelimiters(str, opens, closes)
+		ast = organizeDelimiters(str, opens, closes, options)
 	}
 
 	ast.input = str 
@@ -424,13 +425,14 @@ const glue = (ast, transform, options={}) => {
 				const head = ast.input.slice(acc.cursor, delimiter.pos.start)
 				const open = delimiter.open
 				const close = delimiter.close
-				acc.cursor = delimiter.pos.end
+				acc.cursor = delimiter.pos.end - delimiter.close.length
 				if (transform) {
 					let newAst = (delimiter.children || []).map(x => x)
 					newAst.input = ast.input
 					const { start, end } = (delimiter.pos.body || { start: 0, end: 0 })
 					return glue(newAst, transform, { start, end })
 						.then(body => transform(open, body, close))
+						.then(v => (v || '').replace(/\n/g, '\n' + delimiter.line.indentation))
 						.then(v => head + v)
 						.then(v => ({ cursor: acc.cursor, file: acc.file + v }))
 				}
@@ -443,14 +445,15 @@ const glue = (ast, transform, options={}) => {
 				file: ''
 			}))
 			.then(({ cursor, file }) => {
-				if (options.end && cursor < options.end) 
-					return file + ast.input.slice(cursor, options.end)
+				const end = options.end || ast.input.length
+				if (end && cursor < end) 
+					return file + ast.input.slice(cursor, end)
 				else
 					return file + ast.input.slice(cursor)
 			})
 		}
 		else
-			return Promise.resolve(ast.input)
+			return Promise.resolve(ast.input.slice(options.start || 0, options.end))
 	}
 	else
 		return Promise.resolve('')

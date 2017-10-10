@@ -46,9 +46,9 @@ let _fileContent = {}
  * @param  {Object} 	params   					Parameters in case the file contains other 'value' templates. Example: If 'filePath' 
  *                               					contains a template as such: <glue.somevar/>, and if params = { somevar:'hello' }, 
  *                               			 		then <glue.somevar/> will be replaced by 'hello' in the content of 'filePath'
- * @param  {Object} 	options						Options that need to be passed to the 'reassemble' function of the AST object.
- * @param  {Function} 	options.transform			Function that takes a single String argument (reassembled child) and return a String.
- * @param  {Boolean} 	options.indent 				Maintain indentation for each reinjected reassembled child.
+ * @param  {Object} 	options						Options that need to be passed to the 'glue' function of the AST object.
+ * @param  {Function} 	options.transform			Function that takes a 3 String argument (open, body (i.e. glued children), close) and return a String.
+ * @param  {Boolean} 	options.indent 				Maintain indentation for each reinjected glued child.
  * @param  {Boolean} 	options.original 			Original content from 'filePath'
  * @return {Object}     output
  * @return {String}     output.text 				Reconstructed content for file 'filePath'
@@ -68,8 +68,8 @@ const glueFile = (filePath, params = {}, options = {}) => {
 			let isOriginalContent = true
 
 			if (!content) {
-				const open = /<glue(.*?)>/
-				const close = /<\/glue>|\/>/
+				const open = [/<glue(.*?)\/>/, /<glue(.*?)>/]
+				const close = ['', /<\/glue>/]
 				const openStartWith = '<glue'
 
 				return (options.original ? Promise.resolve(options.original) : getFileAsString(filePath))
@@ -85,17 +85,17 @@ const glueFile = (filePath, params = {}, options = {}) => {
 						else {
 							let ast
 							if (originalText.indexOf(openStartWith) >= 0) {
-								ast = getAST(originalText, { open, close })
-								isOriginalContent = ast.children.length == 0
+								ast = getAST(originalText, open, close)
+								isOriginalContent = ast.length == 0
 							}
 							else
 								isOriginalContent = true
 
 							const getContent = isOriginalContent
 								? () => Promise.resolve(originalText)
-								: (params, options) => ast.reassemble((blockStr) => {
-									const { attr, content:c } = getAttributesAndContent(blockStr)
-									return replaceTemplate(attr, c, dirname, params, options)
+								: (params, options) => ast.glue((o,b) => {
+									const attr = getGlueAttributeString(o)
+									return replaceTemplate(attr, b, dirname, params, options)
 								}, options)
 
 							content = {
@@ -125,25 +125,21 @@ const glueFile = (filePath, params = {}, options = {}) => {
 }
 
 /**
- * Gets the attributes as well as the content of a string template. Example:
- * '<glue src="./hello/path.html">Hello World</glue>' -> { attr: ' src="./hello/path.html"', content: 'Hello World' }
+ * Gets the attributes of a string template. Example:
+ * '<glue src="./hello/path.html">' -> ' src="./hello/path.html"'
  *   
- * @param  {String} s e.g. '<glue src="./hello/path.html">Hello World</glue>'
- * @return {Object}   e.g. { attr: ' src="./hello/path.html"', content: 'Hello World' }
+ * @param  {String} s e.g. '<glue src="./hello/path.html">'
+ * @return {String}   e.g. ' src="./hello/path.html"'
  */
-const getAttributesAndContent = s => {
+const getGlueAttributeString = s => {
 	let attr = null
-	let content = null
 	if (s) {
 		attr = s.match(/^<glue(.*?)>/)[1]
-		const skip = `<glue${attr}>`.length
 		if (attr.match(/\/$/))
 			attr = attr.slice(0, -1)
-		else 
-			content = s.slice(skip, -7) // -7 because </glue> is 7 characters long
 	}
 
-	return { attr, content }
+	return attr
 }
 
 /*eslint-disable */
