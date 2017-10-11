@@ -12,7 +12,7 @@ const path = require('path')
 const { ncp } = require('ncp')
 const glob = require('glob')
 require('colors')
-ncp.limit = 1 // nbr of concurrent process allocated to copy your files
+ncp.limit = 16 // nbr of concurrent process allocated to copy your files
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
