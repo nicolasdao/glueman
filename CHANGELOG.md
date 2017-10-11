@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="0.1.0-alpha.3"></a>
+# [0.1.0-alpha.3](https://github.com/nicolasdao/glueman/compare/v0.1.0-alpha.2...v0.1.0-alpha.3) (2017-10-11)
+
+
+### Features
+
+* Add support for automatically re-gluing when new files/folders are added, renamed or deleted (thanks to chokidar) ([5bd6118](https://github.com/nicolasdao/glueman/commit/5bd6118))
+
+
+
 <a name="0.1.0-alpha.2"></a>
 # [0.1.0-alpha.2](https://github.com/nicolasdao/glueman/compare/v0.1.0-alpha.1...v0.1.0-alpha.2) (2017-10-10)
 
