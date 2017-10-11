@@ -70,9 +70,7 @@ program
 				}
 
 				copyFolderToDst(src, dst, { silent: true, deleteDst: true })
-					.then(({ dst }) => {
-						glueAllFiles(dst, { indent: true })
-					})
+					.then(({ src, dst }) => glueAllFiles(dst, { indent: true, getSrcFile: f => f ? f.replace(dst, src) : '' }))
 			})
 	})
 
@@ -97,43 +95,99 @@ program
 				/*eslint-enable */
 				}
 
+				// One-liner for current directory, ignores .dotfiles
+				// const listener = chokidar.watch(src)
+				// listener.on('ready', () => {
+				// 	console.log(`READY FOR CHANGES`)
+				// 	listener.on('all', (event, path) => {
+				// 		console.log(event, path)
+				// 	})
+				// })
+				
 				copyFolderToDst(src, dst, { silent: true, deleteDst: true })
-					.then(({ src, dst }) => glueAllFiles(dst, { indent: true })
-						.then(dstFiles => {
-							let memoizedFiles = (dstFiles || []).map(f => ({
-								srcFile: f.file.replace(dst, src),
-								dstFile: f.file,
-								original: f.original,
-								content: f.content
-							}))
-							dstFiles = null // delete that big object to prevent memory leak.
-							console.log(`Listening to source folder ${src.italic.bold}.`.green)
-							console.log(`Re-gluing destination ${dst.italic.bold} automatically.`.green)
-							return watchFolder(src, null, (e,f) => {
-								console.log(`File ${f.italic.bold} changed.`.cyan)
-								const start = Date.now()
-								getFileAsString(f)
-									.then(content => {
+					.then(({ src, dst }) => glueAllFiles(dst, { indent: true, getSrcFile: f => f ? f.replace(dst, src) : '' })
+						.then(
+							dstFiles => {
+								const getSrcFile = f => f ? f.replace(dst, src) : ''
+								let memoizedFiles = (dstFiles || []).map(f => ({
+									srcFile: getSrcFile(f.file),
+									dstFile: f.file,
+									srcContent: f.srcContent,
+									dstContent: f.dstContent
+								}))
+								dstFiles = null // delete that big object to prevent memory leak.
+								console.log(`Listening to source folder ${src.italic.bold}.`.green)
+								console.log(`Re-gluing destination ${dst.italic.bold} automatically.`.green)
+
+								// Start watching files
+								return watchFolder(src, null, (e,f) => {
+									if (e == 'add' || e == 'unlink' || e == 'addDir' || e == 'unlinkDir') { // need to re-copy/paste all src to dst
+										if (e == 'add')
+											console.log(`New file ${f.italic.bold} successfully added.`.cyan)
+										else if (e == 'unlink')
+											console.log(`Deletion of file ${f.italic.bold} successful.`.cyan)
+										else if (e == 'addDir')
+											console.log(`New folder ${f.italic.bold} successfully added.`.cyan)
+										else if (e == 'unlinkDir')
+											console.log(`Deletion of folder ${f.italic.bold} successful.`.cyan)
+
+										const start = Date.now()
+										copyFolderToDst(src, dst, { silent: true, deleteDst: true })
+											.then(({ src, dst }) => glueAllFiles(dst, { indent: true, getSrcFile: f => f ? f.replace(dst, src) : '' }))
+											.then(
+												dstFiles => {
+													memoizedFiles = (dstFiles || []).map(f => ({
+														srcFile: getSrcFile(f.file),
+														dstFile: f.file,
+														srcContent: f.srcContent,
+														dstContent: f.dstContent
+													}))
+													dstFiles = null // delete that big object to prevent memory leak.
+													console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan)
+												},
+												err => {
+													console.log('Failed to glue files from source folder into destination folder:'.red)
+													console.log(err.message.red)
+												})
+									}
+									else if (e == 'change') { // just a file change
 										let existingFile = memoizedFiles.find(x => x.srcFile == f)
-										if (!existingFile) {
+										if (!existingFile)
 											console.log(`File ${f.italic.bold} can't be found in memory. Can't glue it into destination.`.red)
-											/*eslint-disable */
-										process.exit()
-										/*eslint-enable */
+										else {
+											const start = Date.now()
+											getFileAsString(f)
+												.then(content => {
+													if (existingFile.srcContent != content) {
+														console.log(`Change to file ${f.italic.bold} successful.`.cyan)
+
+														existingFile.srcContent = content // update memoizedFiles with the new content 
+														glueAllFiles(memoizedFiles, { indent: true, getSrcFile: getSrcFile })
+															.then(
+																dstFiles => {
+																	memoizedFiles = (dstFiles || []).map(f => ({
+																		srcFile: getSrcFile(f.file),
+																		dstFile: f.file,
+																		srcContent: f.srcContent,
+																		dstContent: f.dstContent
+																	}))
+																	dstFiles = null // delete that big object to prevent memory leak.
+																	console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan)
+																},
+																err => {
+																	console.log('Failed to glue files from source folder into destination folder:'.red)
+																	console.log(err.message.red)
+																})
+													}
+												})
 										}
-										existingFile.original = content // update memoizedFiles with the new content 
-										glueAllFiles(memoizedFiles, { indent: true })
-											.then(dstFiles => {
-												memoizedFiles = (dstFiles || []).map(f => ({
-													srcFile: f.file.replace(dst, src),
-													dstFile: f.file,
-													original: f.original,
-													content: f.content
-												}))
-												console.log(`Re-gluing operation done in ${Date.now() - start} ms.`.cyan)
-											})
-									})
-							})}))
+									}
+								})
+							},
+							err => {
+								console.log('Failed to glue files from source folder into destination folder:'.red)
+								console.log(err.message.red)
+							}))
 			})
 	})
 

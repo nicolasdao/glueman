@@ -6,12 +6,13 @@
  * LICENSE file in the root directory of this source tree.
 */
 const fs = require('fs')
+const chokidar = require('chokidar')
 const rimraf = require('rimraf')
 const path = require('path')
 const { ncp } = require('ncp')
 const glob = require('glob')
 require('colors')
-ncp.limit = 16 // nbr of concurrent process allocated to copy your files
+ncp.limit = 1 // nbr of concurrent process allocated to copy your files
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
@@ -73,13 +74,24 @@ const createDir = (dirname, cb) =>
 		if (exists)
 			cb()
 		else
-			fs.mkdir(dirname, err => {
-				if (err) throw err
+			fs.mkdir(dirname, () => {
 				cb()
 			})
 	})
 
 const deleteFolder = f => new Promise(onSuccess => rimraf(f, () => onSuccess()))
+
+const rawCopyPaste = (absSrc, absDst, cb, options) => 
+	ncp(absSrc, absDst, () => {
+		if (!options.silent)
+			console.log(`Files located under ${absSrc} successfully copied under folder ${absDst}`.green)
+
+		// This piece of code seems unecessary, but without it, any subsequent glob call in a chained promise 
+		// will only return incomplete results. I can't explain it so far. (Nicolas Dao - 2017/09/29)
+		glob(path.join(absDst, '**/*.*'), () => {
+			cb({ src: absSrc, dst: absDst})
+		})
+	})
 
 const copyFolderToDst = (src, dst, options = {}) => {
 	const absSrc = getPath(src)
@@ -94,25 +106,7 @@ const copyFolderToDst = (src, dst, options = {}) => {
 				/*eslint-enable */
 			}
 			else
-				createDir(absDst, () => {
-					ncp(absSrc, absDst, err => {
-						if (err) {
-							console.error(JSON.stringify(err).red)
-							/*eslint-disable */
-							process.exit()
-							/*eslint-enable */
-						}
-
-						if (!options.silent)
-							console.log(`Files located under ${absSrc} successfully copied under folder ${absDst}`.green)
-
-						// This piece of code seems unecessary, but without it, any subsequent glob call in a chained promise 
-						// will only return incomplete results. I can't explain it so far. (Nicolas Dao - 2017/09/29)
-						glob(path.join(absDst, '**/*.*'), () => {
-							onSuccess({ src: absSrc, dst: absDst})
-						})
-					})
-				})
+				createDir(absDst, () => rawCopyPaste(absSrc, absDst, onSuccess, options))
 		})
 	}))
 }
@@ -140,7 +134,14 @@ const watchFolder = (folderPath, ignore, action) => {
 
 	fileExists(folderPath)
 		.then(
-			() => getAllFilesInFolder(folderPath, ignore).then(files => files.forEach(f => fs.watch(f, eventType => action(eventType, f)))),
+			() => {
+				const listener = chokidar.watch(folderPath, { ignored: /\.DS_Store$/ })
+				listener.on('ready', () => {
+					listener.on('all', (event, filePath) => {
+						action(event, filePath)
+					})
+				})
+			},
 			() => { throw new Error(`Folder '${folderPath}' does not exist!`) }
 		)
 }

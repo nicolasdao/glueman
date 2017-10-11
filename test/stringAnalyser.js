@@ -55,7 +55,7 @@ describe('stringAnalyser', () =>
 			const linesData = getLinesData(text)
 			const pos = text.match(/nic/).index + 2
 			const nicLine = linesData.get(pos)
-			assert.equal(nicLine.line, 2, `The end of the word 'nic' should be on line 2.`)
+			assert.equal(nicLine.line, 2, 'The end of the word \'nic\' should be on line 2.')
 		})))
 
 /*eslint-disable */
@@ -260,20 +260,12 @@ describe('stringAnalyser', () =>
 			</body>
 			</html>`
 
-			const v = 
-				`<glue src='./nav.html'>
-					<p>This is fun</p>
-				</glue>`
-
-			const v2 = 
-				'<glue src="./hello/footer.html"/>'
-
 			const ast = getAST(text, [/<glue(.*?)\/>/, /<glue(.*?)>/], ['', /<\/glue>/] )
 			assert.equal(ast.length, 2, '\'ast\' should contain two children.')
-			assert.equal(ast[0].open, `<glue src='./nav.html'>`, '\'ast[0].open\' is not equal to the expected value.')
-			assert.equal(ast[0].body, `\n					<p>This is fun</p>\n				`, '\'ast[0].body\' is not equal to the expected value.')
-			assert.equal(ast[0].close, `</glue>`, '\'ast[0].close\' is not equal to the expected value.')
-			assert.equal(ast[1].open, `<glue src="./hello/footer.html"/>`, '\'ast[1].open\' is not equal to the expected value.')
+			assert.equal(ast[0].open, '<glue src=\'./nav.html\'>', '\'ast[0].open\' is not equal to the expected value.')
+			assert.equal(ast[0].body, '\n					<p>This is fun</p>\n				', '\'ast[0].body\' is not equal to the expected value.')
+			assert.equal(ast[0].close, '</glue>', '\'ast[0].close\' is not equal to the expected value.')
+			assert.equal(ast[1].open, '<glue src="./hello/footer.html"/>', '\'ast[1].open\' is not equal to the expected value.')
 			assert.equal(ast[1].body, '', '\'ast[1].body\' is not equal to the expected value.')
 			assert.equal(ast[1].close, '', '\'ast[1].close\' is not equal to the expected value.')
 		})))
@@ -348,7 +340,7 @@ describe('stringAnalyser', () =>
 			</html>`
 
 			const ast = getAST(text, '[<]', '[>]' )
-			const transform = (o,b,c) => b.indexOf('./') == 0 ? '<h1>Hello Yes</h1>' : '--'
+			const transform = ({ body }) => body.indexOf('./') == 0 ? '<h1>Hello Yes</h1>' : '--'
 			
 			return ast.glue(transform)
 				.then(value => {
@@ -395,7 +387,7 @@ describe('stringAnalyser', () =>
 			</html>`
 
 			const ast = getAST(text, '[<]', '[>]')
-			const transform = (o,b,c) => b.indexOf(`./`) == 0 
+			const transform = ({ body }) => body.indexOf('./') == 0 
 				? '<h1>Hello</h1>\n<h1>Yes</h1>' 
 				: '--'
 

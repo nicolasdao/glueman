@@ -15,7 +15,30 @@ npm install glueman --save
 ```
 
 ## Why Using Glueman
-We mainly built Glueman to breaking down static website into components without using anything else then plain HTML. No webpack, or grunt/gulp configuration, or all the usual annoying suspects. Just break down your static website into component using plain HTML, then reference them into your main HTML pages using their path and THAT'S IT!!!
+We mainly built Glueman to break down static websites into components without using anything else than plain HTML. No webpack or grunt or gulp configuration shenanigans. Just break down your static website into component using plain HTML, then reference them into your main HTML pages using their path and THAT'S IT!!! It looks something like this:
+
+___This could be an HTML page that references one of your new component:___
+```html
+<p>A lot of HTML stuff here</p>
+<div>
+  <glue src="relativepath/components/yourcomponent.html" someparam="a_picture_for_example.png">
+    <someothervar>
+      <p>Hello, I'm a lot of other HTML<p/>
+    </someothervar>
+  </glue>
+</div>
+<p>Another heaps of other HTML stuff here</p>
+```
+
+___yourcomponent.html loacated under relativepath/components/___
+```html
+<div>
+  <img src="./static/img/<glue.someparam/>">
+  <div>
+    <glue.someothervar/>
+  </div>
+</div>
+```
 
 ## How To use It
 To use Glueman, you must:

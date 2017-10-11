@@ -72,6 +72,7 @@ const glueFile = (filePath, params = {}, options = {}) => {
 				const close = ['', /<\/glue>/]
 				const openStartWith = '<glue'
 
+				const srfFile = options.getSrcFile ? options.getSrcFile(filePath) : ''
 				return (options.original ? Promise.resolve(options.original) : getFileAsString(filePath))
 					.then(originalText => {
 						const cachedContentHasNotChanged = options.content && options.content == options.original
@@ -85,7 +86,7 @@ const glueFile = (filePath, params = {}, options = {}) => {
 						else {
 							let ast
 							if (originalText.indexOf(openStartWith) >= 0) {
-								ast = getAST(originalText, open, close)
+								ast = getAST(originalText, open, close, Object.assign( { filename: srfFile }, options))
 								isOriginalContent = ast.length == 0
 							}
 							else
@@ -93,9 +94,9 @@ const glueFile = (filePath, params = {}, options = {}) => {
 
 							const getContent = isOriginalContent
 								? () => Promise.resolve(originalText)
-								: (params, options) => ast.glue((o,b) => {
-									const attr = getGlueAttributeString(o)
-									return replaceTemplate(attr, b, dirname, params, options)
+								: (params, options) => ast.glue(({ open, body }) => {
+									const attr = getGlueAttributeString(open)
+									return replaceTemplate(attr, body, dirname, params, options)
 								}, options)
 
 							content = {
@@ -146,7 +147,7 @@ const getGlueAttributeString = s => {
 const escapeRegExp = str => str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&')
 /*eslint-enable */
 
-const glueAllFiles = (arg, options) => {
+const glueAllFiles = (arg, options={}) => {
 	_fileContent = {}
 	if (!arg)
 		throw new Error('arg is required.')
@@ -159,21 +160,21 @@ const glueAllFiles = (arg, options) => {
 				glueFile(f, null, options).then(fileContent => {
 					if (fileContent && !fileContent.isOriginalContent) 
 						writeToFile(f, fileContent.text)
-					return { file: f, content:fileContent.text, original: fileContent.originalContent }
+					return { file: f, dstContent: fileContent.text, srcContent: fileContent.originalContent }
 				}))))
 	}
 	// We only focus on a specific list of files for which we already know the existing content.
 	else if (arg.length != undefined) { 
-		if (arg.every(x => x.dstFile && x.content && x.original)) {
+		if (arg.every(x => x.dstFile != undefined && x.dstContent != undefined && x.srcContent != undefined)) {
 			return Promise.all(arg.map(a => 
-				glueFile(a.dstFile, null, Object.assign({ original: a.original, content: a.content }, options)).then(fileContent => {
-					if (fileContent && a.content != fileContent.text)
+				glueFile(a.dstFile, null, Object.assign({ original: a.srcContent, content: a.dstContent }, options)).then(fileContent => {
+					if (fileContent && a.dstContent != fileContent.text)
 						writeToFile(a.dstFile, fileContent.text)
-					return { file: a.dstFile, content: fileContent.text, original: fileContent.originalContent }
+					return { file: a.dstFile, dstContent: fileContent.text, srcContent: fileContent.originalContent }
 				})
 			))
 		}
-		else
+		else 
 			throw new Error('Invalid argument \'arg\'. If \'arg\' is an array, each item must be an object containing those three properties: \'dstFile\', \'content\' and \'original\'.')
 	}
 	else 
